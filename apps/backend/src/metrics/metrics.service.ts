@@ -7,6 +7,8 @@ export class MetricsService {
   private readonly credentialIssuedTotal: Counter;
   private readonly bstMintedTotal: Counter;
   private readonly stellarRpcLatency: Histogram;
+  private readonly cacheHitsTotal: Counter;
+  private readonly cacheMissesTotal: Counter;
 
   constructor() {
     this.httpRequestsTotal = new Counter({
@@ -37,6 +39,20 @@ export class MetricsService {
       buckets: [0.1, 0.5, 1, 2, 5],
       registers: [register],
     });
+
+    this.cacheHitsTotal = new Counter({
+      name: 'cache_hits_total',
+      help: 'Total number of cache hits',
+      labelNames: ['cache'],
+      registers: [register],
+    });
+
+    this.cacheMissesTotal = new Counter({
+      name: 'cache_misses_total',
+      help: 'Total number of cache misses',
+      labelNames: ['cache'],
+      registers: [register],
+    });
   }
 
   incrementHttpRequests(method: string, route: string, statusCode: number) {
@@ -57,5 +73,13 @@ export class MetricsService {
 
   observeStellarRpcLatency(method: string, status: string, durationSeconds: number) {
     this.stellarRpcLatency.observe({ method, status }, durationSeconds);
+  }
+
+  incrementCacheHit(cache: string) {
+    this.cacheHitsTotal.inc({ cache });
+  }
+
+  incrementCacheMiss(cache: string) {
+    this.cacheMissesTotal.inc({ cache });
   }
 }

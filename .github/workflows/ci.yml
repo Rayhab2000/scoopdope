@@ -27,6 +27,9 @@ jobs:
       - name: Lint backend
         run: npm run lint --workspace=apps/backend
 
+      - name: Type-check backend
+        run: npm run type-check --workspace=apps/backend
+
       - name: Build backend
         run: npm run build --workspace=apps/backend
         env:

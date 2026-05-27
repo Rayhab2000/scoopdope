@@ -483,3 +483,55 @@ alerting:
 | RSS memory | — | > 300 MB (health check fails) | `process_resident_memory_bytes` |
 | Event loop lag | > 100ms | > 500ms | `nodejs_eventloop_lag_seconds` |
 | Backend scrape | — | `up == 0` | Prometheus `up` metric |
+
+---
+
+## OpenTelemetry Distributed Tracing
+
+scoopdope uses the [OpenTelemetry Node.js SDK](https://opentelemetry.io/docs/instrumentation/js/) to trace all API requests end-to-end, including PostgreSQL queries and Redis operations.
+
+### How it works
+
+`src/tracing.ts` is loaded before the NestJS bootstrap in `main.ts`. It initialises the OTel SDK with:
+
+| Instrumentation | What it traces |
+|---|---|
+| `HttpInstrumentation` | All inbound HTTP requests and outbound `http`/`https` calls |
+| `PgInstrumentation` | Every PostgreSQL query executed via `pg` (used by TypeORM) |
+| `IORedisInstrumentation` | Every Redis command executed via `ioredis` |
+
+### Exporter
+
+Traces are exported via **OTLP/HTTP** (default: `http://localhost:4318/v1/traces`).
+
+Override with the environment variable:
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318/v1/traces
+```
+
+### Running Jaeger locally
+
+```bash
+docker run -d --name jaeger \
+  -p 16686:16686 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+```
+
+Open the Jaeger UI at `http://localhost:16686` and select the `scoopdope-backend` service.
+
+### AWS X-Ray
+
+To export to AWS X-Ray, replace the `OTLPTraceExporter` in `src/tracing.ts` with the [AWS Distro for OpenTelemetry (ADOT) collector](https://aws-otel.github.io/) and set:
+
+```
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+```
+
+### Environment variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` | OTLP trace collector URL |
+| `GIT_COMMIT_SHA` | `0.0.0` | Injected by CI; used as `service.version` resource attribute |

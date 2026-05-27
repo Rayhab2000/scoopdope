@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { StellarService } from '../stellar/stellar.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 type LeaderboardEntry = {
   userId: string;
@@ -17,21 +18,25 @@ type LeaderboardEntry = {
 @Injectable()
 export class LeaderboardService {
   private readonly cacheKey = 'leaderboard:top50';
-  private readonly cacheTtlMs = 300_000;
+  /** 1-minute TTL in milliseconds */
+  private readonly cacheTtlMs = 60_000;
 
   constructor(
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly stellarService: StellarService,
     @Inject(CACHE_MANAGER)
-    private readonly cacheManager: Cache
+    private readonly cacheManager: Cache,
+    private readonly metricsService: MetricsService
   ) {}
 
   async getTopUsers() {
     const cached = await this.cacheManager.get<LeaderboardEntry[]>(this.cacheKey);
     if (cached) {
+      this.metricsService.incrementCacheHit('leaderboard');
       return cached;
     }
+    this.metricsService.incrementCacheMiss('leaderboard');
 
     const users = await this.userRepo.find({
       where: {},

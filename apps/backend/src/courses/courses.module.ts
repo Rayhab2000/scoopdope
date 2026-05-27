@@ -21,12 +21,14 @@ import { PrerequisitesService } from './prerequisites.service';
 import { PrerequisitesController } from './prerequisites.controller';
 import { CourseSchedulerService } from './course-scheduler.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MetricsModule } from '../metrics/metrics.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Course, CourseModule, Lesson, Review, Enrollment, CourseVersion, CoursePrerequisite]),
     SearchModule,
     NotificationsModule,
+    MetricsModule,
   ],
   providers: [CoursesService, ModulesService, LessonsService, ReviewsService, CourseVersioningService, PrerequisitesService, CourseSchedulerService],
   controllers: [CoursesController, ModulesController, ReviewsController, CourseVersioningController, PrerequisitesController],
