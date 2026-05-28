@@ -86,4 +86,8 @@ export default () => ({
     proPriceId: process.env.STRIPE_PRO_PRICE_ID || '',
     enterprisePriceId: process.env.STRIPE_ENTERPRISE_PRICE_ID || '',
   },
+
+  exchangeRate: {
+    apiKey: process.env.EXCHANGE_RATE_API_KEY || '',
+  },
 });
