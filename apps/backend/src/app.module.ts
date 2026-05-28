@@ -46,6 +46,7 @@ import { StreaksModule } from './streaks/streaks.module';
 import { BundlesModule } from './bundles/bundles.module';
 import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { LiveSessionsModule } from './live-sessions/live-sessions.module';
+import { PaymentsModule } from './payments/payments.module';
 import * as redisStore from 'cache-manager-redis-store';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import configuration from './config/configuration';
@@ -142,6 +143,7 @@ import { validationSchema } from './config/validation.schema';
     BundlesModule,
     SubscriptionsModule,
     LiveSessionsModule,
+    PaymentsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

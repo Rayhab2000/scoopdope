@@ -57,6 +57,10 @@ export class Course {
   @Column({ nullable: true })
   thumbnailUrl: string;
 
+  /** Base price in USD; null or 0 means free */
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true, default: null })
+  priceUsd: number | null;
+
   @Column({ type: 'jsonb', nullable: true })
   skills: string[];
 
