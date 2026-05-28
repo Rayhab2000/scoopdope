@@ -9,11 +9,13 @@ interface CertData {
   studentName: string;
   issuedAt: string;
   txHash: string;
+  grade?: string;
+  skills?: string[];
 }
 
 async function getCert(id: string): Promise<CertData | null> {
   try {
-    const res = await fetch(`${API_URL}/v1/certificates/${id}`, { next: { revalidate: 3600 } });
+    const res = await fetch(`${API_URL}/v1/credentials/detail/${id}`, { next: { revalidate: 3600 } });
     if (!res.ok) return null;
     const json = await res.json();
     return json?.data ?? json;
@@ -77,7 +79,27 @@ export default async function CertificatePage({ params }: { params: { id: string
         <p className="text-4xl font-bold">{cert.studentName}</p>
         <p className="text-lg text-gray-600">has successfully completed</p>
         <p className="text-2xl font-semibold text-blue-600">{cert.courseName}</p>
-        <p className="text-sm text-gray-400">
+        
+        {cert.grade && (
+          <p className="text-md font-medium text-gray-700">
+            Grade: <span className="text-blue-600">{cert.grade}</span>
+          </p>
+        )}
+
+        {cert.skills && cert.skills.length > 0 && (
+          <div className="pt-2">
+            <p className="text-sm text-gray-500 mb-2 font-medium">Skills acquired:</p>
+            <div className="flex flex-wrap justify-center gap-2">
+              {cert.skills.map((skill, i) => (
+                <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">
+                  {skill}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <p className="text-sm text-gray-400 pt-4">
           Issued: {new Date(cert.issuedAt).toLocaleDateString()}
         </p>
         <p className="text-xs text-gray-400 font-mono break-all">Tx: {cert.txHash}</p>

@@ -25,6 +25,7 @@ export class StellarService {
   private networkPassphrase: string;
   private analyticsContractId: string;
   private tokenContractId: string;
+  private credentialMetadataContractId: string;
   private contractId: string;
 
   constructor(
@@ -44,6 +45,8 @@ export class StellarService {
     this.contractId = this.configService.get<string>('stellar.contractId') ?? '';
     this.analyticsContractId = this.configService.get<string>('stellar.analyticsContractId') ?? '';
     this.tokenContractId = this.configService.get<string>('stellar.tokenContractId') ?? '';
+    this.credentialMetadataContractId =
+      this.configService.get<string>('stellar.credentialMetadataContractId') ?? '';
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
@@ -68,7 +71,11 @@ export class StellarService {
     return { message: `Account ${publicKey} funded successfully` };
   }
 
-  async issueCredential(recipientPublicKey: string, courseId: string): Promise<string> {
+  async issueCredential(
+    recipientPublicKey: string,
+    courseId: string,
+    metadata?: { courseName: string; grade: string; skills: string[] }
+  ): Promise<string> {
     try {
       await this.retryWithBackoff(() => this.recordProgressOnChain(recipientPublicKey, courseId));
       this.logger.log(`Progress recorded on Soroban for ${courseId}`);
@@ -79,7 +86,36 @@ export class StellarService {
       await this.issueCredentialFallback(recipientPublicKey, courseId);
     }
 
+    if (metadata && this.credentialMetadataContractId) {
+      try {
+        await this.retryWithBackoff(() =>
+          this.storeCredentialMetadata(recipientPublicKey, metadata)
+        );
+        this.logger.log(`Metadata stored on-chain for ${metadata.courseName}`);
+      } catch (error) {
+        this.logger.error(`Failed to store metadata on-chain: ${error.message}`);
+      }
+    }
+
     return this.mintCredentialViaHorizon(recipientPublicKey, courseId);
+  }
+
+  async storeCredentialMetadata(
+    studentPublicKey: string,
+    metadata: { courseName: string; grade: string; skills: string[] }
+  ): Promise<string> {
+    const issuerKeypair = Keypair.fromSecret(
+      this.configService.get<string>('stellar.secretKey') ?? ''
+    );
+
+    return this.invokeContract(this.credentialMetadataContractId, 'store_metadata', [
+      new Address(issuerKeypair.publicKey()).toScVal(), // admin
+      new Address(studentPublicKey).toScVal(), // student
+      nativeToScVal(metadata.courseName, { type: 'string' }),
+      nativeToScVal(Math.floor(Date.now() / 1000), { type: 'u64' }), // completion_date
+      nativeToScVal(metadata.grade, { type: 'string' }),
+      nativeToScVal(metadata.skills), // Soroban Vec<String>
+    ]);
   }
 
   async recordProgress(

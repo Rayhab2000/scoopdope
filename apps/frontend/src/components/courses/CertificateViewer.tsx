@@ -13,6 +13,8 @@ interface Certificate {
   studentName: string;
   issuedAt: string;
   txHash: string;
+  grade?: string;
+  skills?: string[];
 }
 
 interface CertificateViewerProps {
@@ -76,7 +78,27 @@ export function CertificateViewer({ certificate, isOpen, onClose }: CertificateV
             <p className="text-3xl font-bold">{certificate.studentName}</p>
             <p className="text-lg">has successfully completed</p>
             <p className="text-2xl font-semibold text-blue-600">{certificate.courseName}</p>
-            <p className="text-sm text-gray-500">Issued: {new Date(certificate.issuedAt).toLocaleDateString()}</p>
+            
+            {certificate.grade && (
+              <p className="text-md font-medium text-gray-700">
+                Grade: <span className="text-blue-600">{certificate.grade}</span>
+              </p>
+            )}
+
+            {certificate.skills && certificate.skills.length > 0 && (
+              <div className="pt-2">
+                <p className="text-sm text-gray-500 mb-2 font-medium">Skills acquired:</p>
+                <div className="flex flex-wrap justify-center gap-2">
+                  {certificate.skills.map((skill, i) => (
+                    <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 text-xs rounded-full border border-blue-100">
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <p className="text-sm text-gray-500 pt-4">Issued: {new Date(certificate.issuedAt).toLocaleDateString()}</p>
             <div className="pt-4 border-t">
               <p className="text-xs text-gray-400 font-mono break-all">Blockchain Verified: {certificate.txHash}</p>
             </div>

@@ -25,10 +25,9 @@ export class CreateCourseDto {
   @Trim()
   language?: string;
 
-  @IsOptional()
-  @IsString()
-  @Trim()
-  thumbnailUrl?: string;
+  @IsOptional() @IsString() @Trim() thumbnailUrl?: string;
+
+  @IsOptional() @IsString({ each: true }) skills?: string[];
 
   @IsOptional() @IsInt() @Min(0) durationHours?: number;
 

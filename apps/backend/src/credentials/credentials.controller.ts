@@ -17,8 +17,6 @@ import { CredentialsService } from './credentials.service';
 import { CertificatePdfService } from './certificate-pdf.service';
 
 @ApiTags('credentials')
-@ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
 @Controller('credentials')
 export class CredentialsController {
   constructor(
@@ -26,6 +24,25 @@ export class CredentialsController {
     private certificatePdfService: CertificatePdfService
   ) {}
 
+  @Get('detail/:id')
+  @ApiOperation({ summary: 'Public: Get a credential by ID' })
+  @ApiResponse({ status: 200, description: 'Credential found' })
+  @ApiResponse({ status: 404, description: 'Credential not found' })
+  async findOne(@Param('id') id: string) {
+    const credential = await this.credentialsService.findOne(id);
+    return {
+      id: credential.id,
+      courseName: credential.course?.title,
+      studentName: credential.user?.username || credential.user?.email || 'Student',
+      issuedAt: credential.issuedAt,
+      txHash: credential.txHash,
+      grade: credential.grade,
+      skills: credential.course?.skills,
+    };
+  }
+
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get(':id/pdf')
   @Header('Content-Type', 'application/pdf')
   @ApiOperation({ summary: 'Download a credential as a PDF certificate' })
@@ -39,6 +56,8 @@ export class CredentialsController {
     });
   }
 
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
   @Get(':userId')
   @ApiOperation({ summary: 'List all credentials for a user' })
   @ApiResponse({
@@ -62,7 +81,6 @@ export class CredentialsController {
     description: 'Verification result',
     schema: { example: { valid: true, txHash: 'abc123' } },
   })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Transaction not found' })
   verify(@Param('txHash') txHash: string) {
     return this.credentialsService.verify(txHash);

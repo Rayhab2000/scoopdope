@@ -16,6 +16,10 @@ interface Credential {
   issuedAt: string;
   txHash: string;
   studentName?: string;
+  grade?: string;
+  course?: {
+    skills?: string[];
+  };
 }
 
 export default function CredentialsPage() {
@@ -98,6 +102,8 @@ export default function CredentialsPage() {
           certificate={{
             ...selectedCert,
             studentName: selectedCert.studentName || user?.name || 'Student',
+            grade: selectedCert.grade,
+            skills: selectedCert.course?.skills,
           }}
           isOpen={!!selectedCert}
           onClose={() => setSelectedCert(null)}

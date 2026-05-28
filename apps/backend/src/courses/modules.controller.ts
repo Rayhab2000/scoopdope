@@ -1,10 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, Res, NotFoundException } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ModulesService } from './modules.service';
 import { LessonsService } from './lessons.service';
+import { TranscribeService } from './transcribe.service';
 import { CreateModuleDto } from './dto/create-module.dto';
 import { CreateLessonDto } from './dto/create-lesson.dto';
 
@@ -13,7 +15,8 @@ import { CreateLessonDto } from './dto/create-lesson.dto';
 export class ModulesController {
   constructor(
     private modulesService: ModulesService,
-    private lessonsService: LessonsService
+    private lessonsService: LessonsService,
+    private transcribeService: TranscribeService,
   ) {}
 
   // ── Modules ──────────────────────────────────────────────────────────────
@@ -88,6 +91,14 @@ export class ModulesController {
     return this.lessonsService.findByModule(moduleId);
   }
 
+  @Get('lessons/:id')
+  @ApiOperation({ summary: 'Get a lesson by id' })
+  @ApiResponse({ status: 200, description: 'Lesson found' })
+  @ApiResponse({ status: 404, description: 'Lesson not found' })
+  getLesson(@Param('id') id: string) {
+    return this.lessonsService.findOne(id);
+  }
+
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles('instructor', 'admin')
@@ -130,5 +141,32 @@ export class ModulesController {
   @ApiResponse({ status: 404, description: 'Lesson not found' })
   deleteLesson(@Param('id') id: string) {
     return this.lessonsService.remove(id);
+  }
+
+  @Get('lessons/:id/transcript/srt')
+  @ApiOperation({ summary: 'Download lesson transcript as SRT' })
+  async downloadSrt(@Param('id') id: string, @Res() res: Response) {
+    const lesson = await this.lessonsService.findOne(id);
+    if (!lesson || !lesson.transcriptSrt) throw new NotFoundException('Transcript not found');
+    
+    res.set({
+      'Content-Type': 'text/plain',
+      'Content-Disposition': `attachment; filename="lesson-${id}.srt"`,
+    });
+    res.send(lesson.transcriptSrt);
+  }
+
+  @Get('lessons/:id/transcript/pdf')
+  @ApiOperation({ summary: 'Download lesson transcript as PDF' })
+  async downloadPdf(@Param('id') id: string, @Res() res: Response) {
+    const lesson = await this.lessonsService.findOne(id);
+    if (!lesson || !lesson.transcript) throw new NotFoundException('Transcript not found');
+    
+    const pdfBuffer = this.transcribeService.generateTranscriptPdf(lesson);
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition': `attachment; filename="lesson-${id}.pdf"`,
+    });
+    res.send(pdfBuffer);
   }
 }

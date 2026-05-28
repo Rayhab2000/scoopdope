@@ -1,5 +1,5 @@
 #![no_std]
-use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Symbol};
+use soroban_sdk::{contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, Symbol, Vec};
 
 pub mod pausable;
 
@@ -19,6 +19,7 @@ pub enum Permission {
     IssueCredential,
     MintToken,
     ManageUsers,
+    Upgrade,
 }
 
 #[contracttype]
@@ -37,9 +38,13 @@ pub struct CrossContractCallRecord {
 pub enum DataKey {
     Role(Address),
     Admin,
+    Governance,                          // Address of the governance contract
     CrossContractCall(u64),              // id → CrossContractCallRecord
     NextCallId,                          // u64 counter
     AuthorizedCallers(Address),          // contract → Vec<Address> (authorized callers)
+    WasmHistory,                         // Vec<BytesN<32>>
+    CurrentVersion,                      // u32
+    MigratedVersion,                     // u32
 }
 
 #[contract]
@@ -60,12 +65,88 @@ fn role_has_permission(role: &Role, permission: &Permission) -> bool {
 #[contractimpl]
 impl SharedContract {
     /// Initialize the contract with an admin address
-    pub fn initialize(env: Env, admin: Address) {
+    pub fn initialize(env: Env, admin: Address, governance: Address) {
         admin.require_auth();
         env.storage().instance().set(&DataKey::Admin, &admin);
+        env.storage().instance().set(&DataKey::Governance, &governance);
         env.storage()
             .instance()
             .set(&DataKey::Role(admin.clone()), &Role::Admin);
+        env.storage().instance().set(&DataKey::CurrentVersion, &1_u32);
+        env.storage().instance().set(&DataKey::MigratedVersion, &1_u32);
+    }
+
+    /// Set the governance address (admin only)
+    pub fn set_governance(env: Env, caller: Address, governance: Address) {
+        caller.require_auth();
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        assert!(caller == admin, "Only admin can set governance");
+        env.storage().instance().set(&DataKey::Governance, &governance);
+    }
+
+    /// Upgrade the contract WASM code. Only callable by governance.
+    pub fn upgrade(env: Env, new_wasm_hash: BytesN<32>) {
+        let governance: Address = env.storage().instance().get(&DataKey::Governance).expect("Governance not set");
+        governance.require_auth();
+
+        // Update WASM history for rollbacks
+        let mut history: Vec<BytesN<32>> = env.storage().persistent().get(&DataKey::WasmHistory).unwrap_or(Vec::new(&env));
+        let current_wasm: BytesN<32> = env.deployer().current_contract_wasm_hash();
+        history.push_back(current_wasm);
+        env.storage().persistent().set(&DataKey::WasmHistory, &history);
+
+        // Update version
+        let version: u32 = env.storage().instance().get(&DataKey::CurrentVersion).unwrap_or(1);
+        env.storage().instance().set(&DataKey::CurrentVersion, &(version + 1));
+
+        // Perform the upgrade
+        env.deployer().update_current_contract_wasm(new_wasm_hash);
+    }
+
+    /// Rollback to the previous WASM version. Only callable by governance.
+    pub fn rollback(env: Env) {
+        let governance: Address = env.storage().instance().get(&DataKey::Governance).expect("Governance not set");
+        governance.require_auth();
+
+        let mut history: Vec<BytesN<32>> = env.storage().persistent().get(&DataKey::WasmHistory).expect("No history");
+        assert!(history.len() > 0, "Nothing to rollback to");
+
+        let prev_wasm = history.pop_back().unwrap();
+        env.storage().persistent().set(&DataKey::WasmHistory, &history);
+
+        // Version stays the same or we could decrement it, but usually upgrades increment version.
+        // We'll keep the version incrementing even on rollbacks to indicate a state change.
+        let version: u32 = env.storage().instance().get(&DataKey::CurrentVersion).unwrap_or(1);
+        env.storage().instance().set(&DataKey::CurrentVersion, &(version + 1));
+
+        // Perform the rollback
+        env.deployer().update_current_contract_wasm(prev_wasm);
+    }
+
+    /// Perform state migration after an upgrade.
+    /// This should be called once per version.
+    pub fn migrate(env: Env, admin: Address) {
+        admin.require_auth();
+        let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        assert!(admin == stored_admin, "Only admin can migrate");
+
+        let current_version: u32 = env.storage().instance().get(&DataKey::CurrentVersion).unwrap_or(1);
+        let migrated_version: u32 = env.storage().instance().get(&DataKey::MigratedVersion).unwrap_or(0);
+        
+        assert!(current_version > migrated_version, "Already migrated to this version");
+
+        // Migration logic for specific versions can be added here
+        // Example:
+        // if current_version == 2 {
+        //     // migration code...
+        // }
+
+        env.storage().instance().set(&DataKey::MigratedVersion, &current_version);
+    }
+
+    /// Get current version
+    pub fn get_version(env: Env) -> u32 {
+        env.storage().instance().get(&DataKey::CurrentVersion).unwrap_or(1)
     }
 
     /// Assign a role to an address (admin only). Emits ("rbac", "role_assigned").

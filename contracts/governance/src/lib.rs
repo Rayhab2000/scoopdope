@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, IntoVal, String, Symbol,
+    contract, contractimpl, contracttype, symbol_short, Address, BytesN, Env, IntoVal, String, Symbol,
 };
 
 pub mod voting;
@@ -44,7 +44,7 @@ pub struct UpgradeProposalRecord {
     pub id: u64,
     pub proposer: Address,
     pub contract_address: Address,
-    pub new_wasm_hash: Symbol,
+    pub new_wasm_hash: BytesN<32>,
     pub voting_end_ledger: u32,
     pub votes_for: i128,
     pub votes_against: i128,
@@ -236,7 +236,7 @@ impl GovernanceContract {
         env: Env,
         proposer: Address,
         contract_address: Address,
-        new_wasm_hash: Symbol,
+        new_wasm_hash: BytesN<32>,
         voting_end_ledger: u32,
         timelock_ledger: u32,
     ) -> u64 {
@@ -385,6 +385,13 @@ impl GovernanceContract {
         env.storage()
             .persistent()
             .set(&DataKey::UpgradeProposal(upgrade_id), &upgrade);
+
+        // Execute the upgrade on the target contract
+        env.invoke_contract::<()>(
+            &upgrade.contract_address,
+            &symbol_short!("upgrade"),
+            soroban_sdk::vec![&env, upgrade.new_wasm_hash.into_val(&env)],
+        );
 
         env.events().publish(
             (UPGRADE_EXECUTED, symbol_short!("id")),

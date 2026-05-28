@@ -57,6 +57,9 @@ export class Course {
   @Column({ nullable: true })
   thumbnailUrl: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  skills: string[];
+
   @Column({ nullable: true, type: 'timestamptz' })
   scheduledAt: Date | null;
 

@@ -20,6 +20,7 @@
   "dependencies": {
     "@scoopdope/types": "*",
     "@aws-sdk/client-comprehend": "^3.758.0",
+    "@aws-sdk/client-transcribe": "^3.758.0",
     "@elastic/elasticsearch": "^8.17.0",
     "@nest-lab/throttler-storage-redis": "^1.2.0",
     "@nestjs/axios": "^4.0.1",

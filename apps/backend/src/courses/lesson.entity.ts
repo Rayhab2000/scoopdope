@@ -31,6 +31,15 @@ export class Lesson {
   @Column({ nullable: true })
   videoUrl: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  transcript: any;
+
+  @Column({ type: 'text', nullable: true })
+  transcriptSrt: string;
+
+  @Column({ nullable: true })
+  transcriptionJobName: string;
+
   @Column({ default: 0 })
   order: number;
 
