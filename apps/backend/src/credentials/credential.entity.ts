@@ -8,6 +8,7 @@ import {
 } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Course } from '../courses/course.entity';
+import { Bundle } from '../bundles/bundle.entity';
 
 @Entity('credentials')
 export class Credential {
@@ -21,12 +22,19 @@ export class Credential {
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @Column({ nullable: true })
   courseId: string;
 
-  @ManyToOne(() => Course, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Course, { onDelete: 'CASCADE', nullable: true })
   @JoinColumn({ name: 'courseId' })
   course: Course;
+
+  @Column({ nullable: true })
+  bundleId: string;
+
+  @ManyToOne(() => Bundle, { onDelete: 'CASCADE', nullable: true })
+  @JoinColumn({ name: 'bundleId' })
+  bundle: Bundle;
 
   @Column({ nullable: true })
   txHash: string;

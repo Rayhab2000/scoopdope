@@ -5,6 +5,8 @@ import { useAuth } from '@/lib/auth-context';
 import api from '@/lib/api';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { CircularProgress } from '@/components/ui/CircularProgress';
+import { StreakWidget } from '@/components/ui/StreakWidget';
+import { CheckCircle2 } from 'lucide-react';
 import OnboardingWizard from '@/components/onboarding/OnboardingWizard';
 import { useOnboardingStore } from '@/store/onboarding.store';
 
@@ -12,6 +14,8 @@ interface UserData {
   id: string;
   username: string;
   email: string;
+  currentStreak?: number;
+  longestStreak?: number;
 }
 
 interface ProgressRecord {
@@ -42,13 +46,20 @@ export default function DashboardPage() {
   const { state } = useAuth();
   const [user, setUser] = useState<UserData | null>(
     state.user
-      ? { id: state.user.id, username: state.user.username, email: state.user.email }
+      ? {
+          id: state.user.id,
+          username: state.user.username,
+          email: state.user.email,
+          currentStreak: (state.user as any).currentStreak,
+          longestStreak: (state.user as any).longestStreak,
+        }
       : null
   );
   const [tokenBalance, setTokenBalance] = useState<number | null>(null);
   const [progress, setProgress] = useState<ProgressRecord[]>([]);
   const [courses, setCourses] = useState<Record<string, CourseData>>({});
   const [credentials, setCredentials] = useState<CredentialRecord[]>([]);
+  const [bundleEnrollments, setBundleEnrollments] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,7 +74,13 @@ export default function DashboardPage() {
         let currentUser = user;
         if (!currentUser) {
           const { data } = await api.get('/users/me');
-          currentUser = { id: data.id, username: data.username, email: data.email };
+          currentUser = {
+            id: data.id,
+            username: data.username,
+            email: data.email,
+            currentStreak: data.currentStreak,
+            longestStreak: data.longestStreak,
+          };
           setUser(currentUser);
         }
 
@@ -71,13 +88,15 @@ export default function DashboardPage() {
           throw new Error('User information is missing.');
         }
 
-        const [balanceRes, progressRes, credRes] = await Promise.all([
+        const [balanceRes, progressRes, credRes, bundlesRes] = await Promise.all([
           api.get(`/users/${currentUser.id}/token-balance`),
           api.get(`/users/${currentUser.id}/progress`),
           api.get(`/credentials/${currentUser.id}`),
+          api.get('/bundles/user/me'),
         ]);
 
         setTokenBalance(Number(balanceRes.data.balance ?? 0));
+        setBundleEnrollments(bundlesRes.data ?? []);
 
         const progressRecords: ProgressRecord[] = (progressRes.data ?? []).map((p: any) => ({
           id: p.id,
@@ -165,20 +184,57 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <section>
-          <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
-            BST Token Balance
-          </h2>
-          <div className="mt-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
-            {isLoading ? (
-              <SkeletonItem width="w-32" height="h-7" />
-            ) : (
-              <p className="text-3xl font-bold text-green-600 dark:text-green-400">
-                {tokenBalance ?? 0} BST
-              </p>
-            )}
+        <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              Learning Streak
+            </h2>
+            <StreakWidget
+              currentStreak={user?.currentStreak ?? 0}
+              longestStreak={user?.longestStreak ?? 0}
+              isLoading={isLoading}
+            />
+          </div>
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+              BST Token Balance
+            </h2>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-6 h-[116px] flex items-center">
+              {isLoading ? (
+                <SkeletonItem width="w-32" height="h-7" />
+              ) : (
+                <p className="text-3xl font-bold text-green-600 dark:text-green-400">
+                  {tokenBalance ?? 0} BST
+                </p>
+              )}
+            </div>
           </div>
         </section>
+
+        {bundleEnrollments.length > 0 && (
+          <section>
+            <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">
+              Active Bundles
+            </h2>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {bundleEnrollments.map((enrollment) => (
+                <div key={enrollment.id} className="p-4 rounded-lg border border-blue-100 dark:border-blue-900/30 bg-blue-50/30 dark:bg-blue-900/10">
+                  <h3 className="font-bold text-gray-900 dark:text-white">{enrollment.bundle.title}</h3>
+                  <div className="mt-2 flex items-center justify-between text-sm">
+                    <span className="text-gray-500">{enrollment.bundle.courses.length} Courses</span>
+                    {enrollment.completedAt ? (
+                      <span className="text-green-600 font-bold flex items-center">
+                        <CheckCircle2 className="w-4 h-4 mr-1" /> Completed
+                      </span>
+                    ) : (
+                      <span className="text-blue-600 font-bold">In Progress</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section>
           <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100">

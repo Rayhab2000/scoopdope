@@ -63,4 +63,10 @@ export const validationSchema = Joi.object({
   // Elasticsearch
   ELASTICSEARCH_NODE: Joi.string().uri().default('http://localhost:9200'),
   ELASTICSEARCH_API_KEY: Joi.string().allow('').default(''),
+
+  // Stripe
+  STRIPE_SECRET_KEY: Joi.string().allow('').default(''),
+  STRIPE_WEBHOOK_SECRET: Joi.string().allow('').default(''),
+  STRIPE_PRO_PRICE_ID: Joi.string().allow('').default(''),
+  STRIPE_ENTERPRISE_PRICE_ID: Joi.string().allow('').default(''),
 });

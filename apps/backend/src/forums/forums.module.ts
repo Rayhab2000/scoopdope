@@ -7,9 +7,15 @@ import { Post } from './post.entity';
 import { Reply } from './reply.entity';
 import { ModerationModule } from '../moderation/moderation.module';
 import { SearchModule } from '../search/search.module';
+import { StreaksModule } from '../streaks/streaks.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Course, Post, Reply]), ModerationModule, SearchModule],
+  imports: [
+    TypeOrmModule.forFeature([Course, Post, Reply]),
+    ModerationModule,
+    SearchModule,
+    StreaksModule,
+  ],
   providers: [ForumsService],
   controllers: [ForumsController],
 })

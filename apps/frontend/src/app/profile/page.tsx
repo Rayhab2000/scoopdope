@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import api from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { StreakWidget } from '@/components/ui/StreakWidget';
+import { CreditCard, Star, ExternalLink } from 'lucide-react';
 import WalletSection from './WalletSection';
 
 interface User {
@@ -15,6 +20,10 @@ interface User {
   avatarUrl: string;
   createdAt: string;
   stellarPublicKey?: string;
+  currentStreak?: number;
+  longestStreak?: number;
+  subscriptionTier: 'free' | 'pro' | 'enterprise';
+  subscriptionExpiresAt?: string;
 }
 
 export default function ProfilePage() {
@@ -84,6 +93,54 @@ export default function ProfilePage() {
           </p>
         </div>
       </div>
+
+      <section>
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">My Streak</h2>
+        <StreakWidget
+          currentStreak={user.currentStreak ?? 0}
+          longestStreak={user.longestStreak ?? 0}
+        />
+      </section>
+
+      <section className="space-y-4">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Subscription</h2>
+        <Card className="p-6 border-blue-100 dark:border-blue-900/30">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl">
+                <CreditCard className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              </div>
+              <div>
+                <div className="flex items-center space-x-2">
+                  <span className="font-bold text-gray-900 dark:text-white capitalize">
+                    {user.subscriptionTier} Plan
+                  </span>
+                  {user.subscriptionTier !== 'free' && (
+                    <Badge className="bg-green-500 text-white">Active</Badge>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  {user.subscriptionTier === 'free'
+                    ? 'Upgrade to unlock all courses'
+                    : `Next billing date: ${new Date(user.subscriptionExpiresAt!).toLocaleDateString()}`}
+                </p>
+              </div>
+            </div>
+            {user.subscriptionTier === 'free' ? (
+              <Link href="/pricing">
+                <Button size="sm" className="flex items-center space-x-2">
+                  <Star className="w-4 h-4 fill-current" />
+                  <span>Upgrade Now</span>
+                </Button>
+              </Link>
+            ) : (
+              <Button variant="outline" size="sm" onClick={() => toast.info('Billing portal coming soon!')}>
+                Manage Billing
+              </Button>
+            )}
+          </div>
+        </Card>
+      </section>
 
       <form onSubmit={handleSave} className="space-y-4">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Edit Profile</h2>

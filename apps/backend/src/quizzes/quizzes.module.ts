@@ -7,6 +7,7 @@ import { QuizAttempt } from './quiz-attempt.entity';
 import { QuizAttemptAnswer } from './quiz-attempt-answer.entity';
 import { QuizzesService } from './quizzes.service';
 import { QuizzesController } from './quizzes.controller';
+import { StreaksModule } from '../streaks/streaks.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { QuizzesController } from './quizzes.controller';
       QuizAttempt,
       QuizAttemptAnswer,
     ]),
+    StreaksModule,
   ],
   providers: [QuizzesService],
   controllers: [QuizzesController],

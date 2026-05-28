@@ -9,6 +9,9 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBookmarksStore } from '@/store/bookmarks.store';
 import { useCompareStore } from '@/store/compare.store';
 import { CompareBar } from '@/components/courses/CompareBar';
+import { BundleCard } from '@/components/ui/BundleCard';
+import api from '@/lib/api';
+import { toast } from '@/lib/toast';
 
 const fetcher = (url: string) =>
   fetch(url).then((res) => {
@@ -160,12 +163,19 @@ function BackToTopButton() {
 }
 
 export default function CoursesPage() {
+  const [bundles, setBundles] = useState<any[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { fetchBookmarks } = useBookmarksStore();
   const observerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchBookmarks(); }, [fetchBookmarks]);
+
+  useEffect(() => {
+    api.get('/bundles').then((res) => {
+      setBundles(res.data);
+    }).catch(() => {});
+  }, []);
 
   // Scroll position preservation
   useEffect(() => {
@@ -293,10 +303,41 @@ export default function CoursesPage() {
     router.push('/courses', { scroll: false });
   };
 
+  const handlePurchaseBundle = async (bundle: any) => {
+    try {
+      await api.post(`/bundles/${bundle.id}/purchase`);
+      toast.success(`Successfully purchased ${bundle.title}!`);
+      router.push('/dashboard');
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to purchase bundle');
+    }
+  };
+
   return (
     <ProtectedRoute>
       <main className="max-w-5xl mx-auto p-8 space-y-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Courses</h1>
+
+        {/* Bundles Section */}
+        {bundles.length > 0 && !debouncedQuery && !level && !language && !category && !duration && (
+          <section className="space-y-4 mb-12">
+            <div className="flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Course Bundles</h2>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-700">Special Offers</Badge>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {bundles.map((bundle) => (
+                <BundleCard
+                  key={bundle.id}
+                  bundle={bundle}
+                  onViewDetails={() => router.push(`/bundles/${bundle.id}`)}
+                  onPurchase={handlePurchaseBundle}
+                />
+              ))}
+            </div>
+            <div className="border-b dark:border-gray-800 pb-8" />
+          </section>
+        )}
 
         {/* Search */}
         <div className="relative">

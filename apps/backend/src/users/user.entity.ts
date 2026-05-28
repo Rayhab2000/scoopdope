@@ -1,5 +1,11 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
+export enum SubscriptionTier {
+  FREE = 'free',
+  PRO = 'pro',
+  ENTERPRISE = 'enterprise',
+}
+
 @Entity('users')
 export class User {
   @PrimaryGeneratedColumn('uuid')
@@ -55,6 +61,31 @@ export class User {
 
   @Column({ nullable: true, type: 'varchar' })
   referredBy: string | null;
+
+  @Column({ default: 0 })
+  currentStreak: number;
+
+  @Column({ default: 0 })
+  longestStreak: number;
+
+  @Column({ nullable: true, type: 'datetime' })
+  lastActivityAt: Date | null;
+
+  @Column({
+    type: 'enum',
+    enum: SubscriptionTier,
+    default: SubscriptionTier.FREE,
+  })
+  subscriptionTier: SubscriptionTier;
+
+  @Column({ nullable: true })
+  stripeCustomerId: string;
+
+  @Column({ nullable: true })
+  stripeSubscriptionId: string;
+
+  @Column({ nullable: true, type: 'datetime' })
+  subscriptionExpiresAt: Date | null;
 
   @CreateDateColumn()
   createdAt: Date;

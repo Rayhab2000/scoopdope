@@ -41,6 +41,9 @@ import { CertificatesModule } from './certificates/certificates.module';
 import { PayoutsModule } from './payouts/payouts.module';
 import { InstructorApplicationsModule } from './instructor-applications/instructor-applications.module';
 import { AssignmentsModule } from './assignments/assignments.module';
+import { StreaksModule } from './streaks/streaks.module';
+import { BundlesModule } from './bundles/bundles.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import * as redisStore from 'cache-manager-redis-store';
 import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 import configuration from './config/configuration';
@@ -132,6 +135,9 @@ import { validationSchema } from './config/validation.schema';
     QaModule,
     AnnouncementsModule,
     AssignmentsModule,
+    StreaksModule,
+    BundlesModule,
+    SubscriptionsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

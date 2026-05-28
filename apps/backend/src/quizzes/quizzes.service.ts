@@ -6,6 +6,7 @@ import { QuizQuestion, QuestionType } from './quiz-question.entity';
 import { QuizAttempt } from './quiz-attempt.entity';
 import { QuizAttemptAnswer } from './quiz-attempt-answer.entity';
 import { QuizAnswer } from './quiz-answer.entity';
+import { StreaksService } from '../streaks/streaks.service';
 
 @Injectable()
 export class QuizzesService {
@@ -15,6 +16,7 @@ export class QuizzesService {
     @InjectRepository(QuizAttempt) private attemptRepo: Repository<QuizAttempt>,
     @InjectRepository(QuizAttemptAnswer) private attemptAnswerRepo: Repository<QuizAttemptAnswer>,
     @InjectRepository(QuizAnswer) private answerRepo: Repository<QuizAnswer>,
+    private streaksService: StreaksService
   ) {}
 
   async createQuiz(lessonId: string, data: any) {
@@ -40,6 +42,9 @@ export class QuizzesService {
   }
 
   async submitAttempt(quizId: string, userId: string, answers: any[]) {
+    // Record activity for streak
+    await this.streaksService.recordActivity(userId);
+
     const quiz = await this.quizRepo.findOne({
       where: { id: quizId },
       relations: ['questions', 'questions.answers'],

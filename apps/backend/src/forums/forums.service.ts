@@ -9,6 +9,7 @@ import { Reply } from './reply.entity';
 import { ModerationService } from '../moderation/moderation.service';
 import { ContentType } from '../moderation/moderation.enums';
 import { SearchService } from '../search/search.service';
+import { StreaksService } from '../streaks/streaks.service';
 
 @Injectable()
 export class ForumsService {
@@ -20,7 +21,8 @@ export class ForumsService {
     @InjectRepository(Course)
     private readonly courseRepo: Repository<Course>,
     private readonly moderationService: ModerationService,
-    private readonly searchService: SearchService
+    private readonly searchService: SearchService,
+    private readonly streaksService: StreaksService
   ) {}
 
   async findPostsByCourse(courseId: string) {
@@ -35,6 +37,9 @@ export class ForumsService {
 
   async createPost(courseId: string, userId: string, role: string, dto: CreatePostDto) {
     await this.ensureCourseExists(courseId);
+
+    // Record activity for streak
+    await this.streaksService.recordActivity(userId);
 
     if (dto.isPinned && !this.canModerate(role)) {
       throw new ForbiddenException('Only instructors and admins can pin posts');
@@ -64,6 +69,9 @@ export class ForumsService {
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    // Record activity for streak
+    await this.streaksService.recordActivity(userId);
 
     if (dto.isAnswer && !this.canModerate(role)) {
       throw new ForbiddenException('Only instructors and admins can mark answers');

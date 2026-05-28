@@ -35,6 +35,14 @@ export class UsersController {
     return { message: 'Admin access granted' };
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({ status: 200, description: 'Returns current user data' })
+  async getMe(@Request() req: { user: { id: string } }) {
+    return this.usersService.findById(req.user.id);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({
