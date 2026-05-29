@@ -4,26 +4,29 @@ import { User } from '../users/user.entity';
 @Entity('api_keys')
 export class ApiKey {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  name: string;
+  name!: string;
+
+  @Column({ nullable: true, type: 'varchar' })
+  description!: string | null;
 
   @Column({ unique: true })
-  keyHash: string;
+  keyHash!: string;
 
   @Column({ default: true })
-  isActive: boolean;
+  isActive!: boolean;
 
   @ManyToOne(() => User)
-  user: User;
+  user!: User;
 
   @Column()
-  userId: string;
+  userId!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @Column({ nullable: true, type: 'timestamp' })
-  lastUsedAt: Date;
+  lastUsedAt!: Date | null;
 }

@@ -30,9 +30,9 @@ export class AuditService {
         ipAddress,
         userAgent,
       });
-      this.logger.info(`Audit: ${action}`, { userId, success, metadata });
+      this.logger.info(`Audit: ${action}`, { userId, success, metadata } as any);
     } catch (err) {
-      this.logger.error('Failed to write audit log', err);
+      this.logger.error('Failed to write audit log', err as any);
     }
   }
 

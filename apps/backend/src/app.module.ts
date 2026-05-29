@@ -8,6 +8,7 @@ import { SentryModule } from '@sentry/nestjs/setup';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AuthModule } from './auth/auth.module';
+import { ApiKeysModule } from './api-keys/api-keys.module';
 import { CoursesModule } from './courses/courses.module';
 import { UsersModule } from './users/users.module';
 import { StellarModule } from './stellar/stellar.module';
@@ -105,6 +106,7 @@ import { validationSchema } from './config/validation.schema';
       }),
     }),
     AuthModule,
+    ApiKeysModule,
     CoursesModule,
     UsersModule,
     StellarModule,
