@@ -8,6 +8,7 @@ import api from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import WalletSection from './WalletSection';
 import ReferralSection from './ReferralSection';
+import { TwoFactorAuthentication } from '@/components/profile/TwoFactorAuthentication';
 import { NotificationSettings } from '@/components/profile/NotificationSettings';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useBookmarksStore } from '@/store/bookmarks.store';
@@ -22,6 +23,7 @@ interface User {
   createdAt: string;
   stellarPublicKey?: string;
   referralCode?: string;
+  mfaEnabled: boolean;
 }
 
 interface FormData {
@@ -41,6 +43,10 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const savedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const { bookmarks, fetchBookmarks } = useBookmarksStore();
+
+  const handleMfaStatusChange = useCallback((enabled: boolean) => {
+    setUser((prev) => (prev ? { ...prev, mfaEnabled: enabled } : prev));
+  }, []);
 
   useEffect(() => { fetchBookmarks(); }, [fetchBookmarks]);
 
@@ -300,6 +306,8 @@ export default function ProfilePage() {
             {saving ? t('saving') : saved ? t('saved') : t('saveChanges')}
           </Button>
         </form>
+
+        <TwoFactorAuthentication mfaEnabled={user.mfaEnabled} onStatusChange={handleMfaStatusChange} />
 
         {/* Wallet Section */}
         <WalletSection

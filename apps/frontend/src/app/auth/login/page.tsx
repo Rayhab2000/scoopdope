@@ -11,6 +11,12 @@ import { useAuthStore } from '@/store/auth.store';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
+interface LoginResponse {
+  access_token?: string;
+  refresh_token?: string;
+  mfa_required?: boolean;
+}
+
 const schema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(1, 'Password is required'),
@@ -22,6 +28,9 @@ export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
   const [apiError, setApiError] = useState<string | null>(null);
+  const [awaitingMfa, setAwaitingMfa] = useState(false);
+  const [pendingCredentials, setPendingCredentials] = useState<{ email: string; password: string } | null>(null);
+  const [mfaToken, setMfaToken] = useState('');
 
   const {
     register,
@@ -31,16 +40,51 @@ export default function LoginPage() {
 
   const onSubmit = async (data: FormData) => {
     setApiError(null);
+
     try {
-      const res = await api.post<{ access_token: string; user: any }>('/auth/login', {
-        email: data.email,
-        password: data.password,
+      if (!awaitingMfa) {
+        const res = await api.post<LoginResponse>('/auth/login', {
+          email: data.email,
+          password: data.password,
+        });
+
+        if (res.data.mfa_required) {
+          setAwaitingMfa(true);
+          setPendingCredentials({ email: data.email, password: data.password });
+          return;
+        }
+
+        if (!res.data.access_token) {
+          throw new Error('Unexpected response from server');
+        }
+
+        localStorage.setItem('access_token', res.data.access_token);
+        const profileResponse = await api.get('/users/me');
+        login(res.data.access_token, profileResponse.data);
+        router.push('/dashboard');
+        return;
+      }
+
+      if (!pendingCredentials) {
+        throw new Error('Please retry login from the beginning.');
+      }
+
+      const res = await api.post<LoginResponse>('/auth/login', {
+        email: pendingCredentials.email,
+        password: pendingCredentials.password,
+        mfa_token: mfaToken,
       });
+
+      if (!res.data.access_token) {
+        throw new Error('Invalid MFA token');
+      }
+
       localStorage.setItem('access_token', res.data.access_token);
-      login(res.data.access_token, res.data.user);
+      const profileResponse = await api.get('/users/me');
+      login(res.data.access_token, profileResponse.data);
       router.push('/dashboard');
     } catch (err: any) {
-      const message = err?.response?.data?.message;
+      const message = err?.response?.data?.message ?? err?.message;
       setApiError(typeof message === 'string' ? message : 'Invalid credentials');
     }
   };
@@ -64,7 +108,35 @@ export default function LoginPage() {
             autoComplete="current-password"
             error={errors.password?.message}
             {...register('password')}
+            disabled={awaitingMfa}
           />
+
+          {awaitingMfa && (
+            <div className="space-y-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-800 dark:bg-blue-950/60 dark:text-blue-200">
+              <p className="font-medium">Two-factor authentication required</p>
+              <p>Enter the code from your authenticator app or a backup recovery code to continue.</p>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">MFA Code</label>
+              <input
+                type="text"
+                value={mfaToken}
+                onChange={(e) => setMfaToken(e.target.value.trim())}
+                placeholder="123456"
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                disabled={isSubmitting}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setAwaitingMfa(false);
+                  setPendingCredentials(null);
+                  setMfaToken('');
+                }}
+                className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+              >
+                Change login details
+              </button>
+            </div>
+          )}
 
           {apiError && <p className="text-sm text-red-600 dark:text-red-400">{apiError}</p>}
 
@@ -94,7 +166,7 @@ export default function LoginPage() {
                 Signing in…
               </span>
             ) : (
-              'Sign in'
+              awaitingMfa ? 'Verify code' : 'Sign in'
             )}
           </Button>
         </form>
