@@ -2,19 +2,24 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApiKey } from '../../auth/api-key.entity';
+import { EncryptionService } from '../../common/encryption.service';
 import { AuditService } from '../../audit/audit.service';
 import { ApiKeysService } from '../api-keys.service';
 
 describe('ApiKeysService', () => {
   let service: ApiKeysService;
   let mockRepo: jest.Mocked<Repository<ApiKey>>;
+  let mockEncryption: jest.Mocked<EncryptionService>;
   let mockAudit: jest.Mocked<AuditService>;
 
   const mockUser = { id: 'user-1', email: 'test@example.com', role: 'student' };
+
+  const encryptedDescription = 'encrypted:test-key-desc';
+
   const mockKey: ApiKey = {
     id: 'key-1',
     name: 'Test Key',
-    description: 'A test key',
+    description: encryptedDescription,
     keyHash: 'abc123def456...',
     isActive: true,
     userId: 'user-1',
@@ -33,6 +38,11 @@ describe('ApiKeysService', () => {
       createQueryBuilder: jest.fn(),
     } as any;
 
+    mockEncryption = {
+      encrypt: jest.fn((val: string) => `encrypted:${val}`),
+      decrypt: jest.fn((val: string) => val.replace('encrypted:', '')),
+    } as any;
+
     mockAudit = {
       log: jest.fn(),
     } as any;
@@ -41,6 +51,7 @@ describe('ApiKeysService', () => {
       providers: [
         ApiKeysService,
         { provide: getRepositoryToken(ApiKey), useValue: mockRepo },
+        { provide: EncryptionService, useValue: mockEncryption },
         { provide: AuditService, useValue: mockAudit },
       ],
     }).compile();
@@ -49,10 +60,11 @@ describe('ApiKeysService', () => {
   });
 
   describe('findByUser', () => {
-    it('should return keys for the user', async () => {
+    it('should return keys for the user with decrypted description', async () => {
       mockRepo.find.mockResolvedValue([mockKey]);
       const result = await service.findByUser('user-1');
-      expect(result).toEqual([mockKey]);
+      expect(result).toHaveLength(1);
+      expect(result[0].description).toBe('test-key-desc');
       expect(mockRepo.find).toHaveBeenCalledWith({
         where: { userId: 'user-1' },
         order: { createdAt: 'DESC' },
@@ -61,10 +73,10 @@ describe('ApiKeysService', () => {
   });
 
   describe('findById', () => {
-    it('should find a key by id and userId', async () => {
+    it('should find a key by id and userId with decrypted description', async () => {
       mockRepo.findOne.mockResolvedValue(mockKey);
       const result = await service.findById('key-1', 'user-1');
-      expect(result).toEqual(mockKey);
+      expect(result.description).toBe('test-key-desc');
     });
 
     it('should throw if key not found', async () => {
@@ -75,37 +87,40 @@ describe('ApiKeysService', () => {
     it('should find a key by id only (admin)', async () => {
       mockRepo.findOne.mockResolvedValue(mockKey);
       const result = await service.findById('key-1');
-      expect(result).toEqual(mockKey);
+      expect(result.description).toBe('test-key-desc');
       expect(mockRepo.findOne).toHaveBeenCalledWith({ where: { id: 'key-1' } });
     });
   });
 
   describe('create', () => {
-    it('should create a new API key', async () => {
+    it('should create a new API key with encrypted description', async () => {
       mockRepo.create.mockReturnValue(mockKey);
       mockRepo.save.mockResolvedValue(mockKey);
 
       const result = await service.create('user-1', 'My Key', 'A description');
 
+      expect(mockEncryption.encrypt).toHaveBeenCalledWith('A description');
       expect(result).toHaveProperty('apiKey');
       expect(result).toHaveProperty('warning');
-      expect(result.name).toBe('Test Key');
       expect(mockAudit.log).toHaveBeenCalled();
     });
 
     it('should create a key without description', async () => {
-      mockRepo.create.mockReturnValue(mockKey);
-      mockRepo.save.mockResolvedValue(mockKey);
+      const keyNoDesc = { ...mockKey, description: null };
+      mockRepo.create.mockReturnValue(keyNoDesc);
+      mockRepo.save.mockResolvedValue(keyNoDesc);
 
       const result = await service.create('user-1', 'My Key');
 
+      expect(mockEncryption.encrypt).not.toHaveBeenCalled();
       expect(result).toHaveProperty('apiKey');
     });
   });
 
   describe('update', () => {
-    it('should update key name and description', async () => {
-      mockRepo.findOne.mockResolvedValue({ ...mockKey });
+    it('should update key name and encrypt description', async () => {
+      const existingKey = { ...mockKey };
+      mockRepo.findOne.mockResolvedValue(existingKey);
       mockRepo.save.mockImplementation(async (k: any) => k);
 
       const result = await service.update('key-1', 'user-1', {
@@ -113,7 +128,9 @@ describe('ApiKeysService', () => {
         description: 'Updated desc',
       });
 
+      expect(mockEncryption.encrypt).toHaveBeenCalledWith('Updated desc');
       expect(result.name).toBe('Updated');
+
       expect(result.description).toBe('Updated desc');
     });
 
@@ -163,11 +180,12 @@ describe('ApiKeysService', () => {
   });
 
   describe('maskKey', () => {
-    it('should mask the key hash', () => {
+    it('should mask the key hash with decrypted description', () => {
       const result = service.maskKey(mockKey);
       expect(result.maskedKey).toContain('bst_');
       expect(result.maskedKey).toContain('...');
       expect(result.maskedKey).not.toContain(mockKey.keyHash);
+      expect(result.description).toBe('test-key-desc');
     });
   });
 

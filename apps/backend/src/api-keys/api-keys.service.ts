@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   ConflictException,
@@ -7,23 +8,28 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ApiKey } from '../auth/api-key.entity';
+import { EncryptionService } from '../common/encryption.service';
 import { AuditService } from '../audit/audit.service';
 import { AuditAction } from '../audit/audit-log.entity';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class ApiKeysService {
+  private readonly logger = new Logger(ApiKeysService.name);
+
   constructor(
     @InjectRepository(ApiKey)
     private readonly apiKeyRepo: Repository<ApiKey>,
+    private readonly encryptionService: EncryptionService,
     private readonly auditService: AuditService,
   ) {}
 
   async findByUser(userId: string): Promise<ApiKey[]> {
-    return this.apiKeyRepo.find({
+    const keys = await this.apiKeyRepo.find({
       where: { userId },
       order: { createdAt: 'DESC' },
     });
+    return keys.map((k) => this.decryptApiKey(k));
   }
 
   async findById(id: string, userId?: string): Promise<ApiKey> {
@@ -32,17 +38,32 @@ export class ApiKeysService {
 
     const key = await this.apiKeyRepo.findOne({ where });
     if (!key) throw new NotFoundException('API key not found');
-    return key;
+    return this.decryptApiKey(key);
+  }
+
+  private decryptApiKey(key: ApiKey): ApiKey {
+    if (!key.description) return key;
+    try {
+      const decrypted = this.encryptionService.decrypt(key.description);
+      return { ...key, description: decrypted };
+    } catch {
+      this.logger.warn(`Failed to decrypt description for API key ${key.id}`);
+      return key;
+    }
   }
 
   async create(userId: string, name: string, description?: string) {
     const rawKey = `bst_${crypto.randomBytes(32).toString('hex')}`;
     const hash = crypto.createHash('sha256').update(rawKey).digest('hex');
 
+    const encryptedDescription = description
+      ? this.encryptionService.encrypt(description)
+      : null;
+
     const key = await this.apiKeyRepo.save(
       this.apiKeyRepo.create({
         name,
-        description: description || null,
+        description: encryptedDescription,
         keyHash: hash,
         userId,
         isActive: true,
@@ -66,7 +87,11 @@ export class ApiKeysService {
     const key = await this.findById(id, userId);
 
     if (data.name !== undefined) key.name = data.name;
-    if (data.description !== undefined) key.description = data.description;
+    if (data.description !== undefined) {
+      key.description = data.description
+        ? this.encryptionService.encrypt(data.description)
+        : null;
+    }
 
     await this.apiKeyRepo.save(key);
     return this.maskKey(key);
@@ -140,17 +165,20 @@ export class ApiKeysService {
       .getMany();
 
     return {
-      items: items.map((k) => ({
-        id: k.id,
-        name: k.name,
-        description: k.description,
-        maskedKey: this.maskHash(k.keyHash),
-        isActive: k.isActive,
-        userId: k.userId,
-        userEmail: (k as any).user?.email,
-        createdAt: k.createdAt,
-        lastUsedAt: k.lastUsedAt,
-      })),
+      items: items.map((k) => {
+        const decrypted = this.decryptApiKey(k);
+        return {
+          id: decrypted.id,
+          name: decrypted.name,
+          description: decrypted.description,
+          maskedKey: this.maskHash(decrypted.keyHash),
+          isActive: decrypted.isActive,
+          userId: decrypted.userId,
+          userEmail: (decrypted as any).user?.email,
+          createdAt: decrypted.createdAt,
+          lastUsedAt: decrypted.lastUsedAt,
+        };
+      }),
       meta: {
         total,
         page: query.page,
@@ -181,14 +209,15 @@ export class ApiKeysService {
 
   maskKey(key: ApiKey) {
     const prefix = key.keyHash.substring(0, 8);
+    const decrypted = this.decryptApiKey(key);
     return {
-      id: key.id,
-      name: key.name,
-      description: key.description || undefined,
+      id: decrypted.id,
+      name: decrypted.name,
+      description: decrypted.description || undefined,
       maskedKey: `bst_${prefix}...`,
-      isActive: key.isActive,
-      createdAt: key.createdAt,
-      lastUsedAt: key.lastUsedAt || undefined,
+      isActive: decrypted.isActive,
+      createdAt: decrypted.createdAt,
+      lastUsedAt: decrypted.lastUsedAt || undefined,
     };
   }
 

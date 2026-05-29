@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
+import { EncryptionService } from '../common/encryption.service';
 import { KycCustomer, KycStatus } from './kyc-customer.entity';
 
 @Injectable()
@@ -11,7 +12,8 @@ export class KycService {
 
   constructor(
     @InjectRepository(KycCustomer) private repo: Repository<KycCustomer>,
-    private configService: ConfigService
+    private configService: ConfigService,
+    private encryptionService: EncryptionService,
   ) {
     this.apiKey = this.configService.get<string>('kyc.providerApiKey') ?? '';
   }
@@ -19,8 +21,25 @@ export class KycService {
   async getStatus(stellarPublicKey: string): Promise<KycCustomer> {
     const customer = await this.repo.findOne({ where: { stellarPublicKey } });
     if (!customer) {
-      // Return a virtual record — no DB row yet
       return Object.assign(new KycCustomer(), { stellarPublicKey, status: 'none' as KycStatus });
+    }
+    return this.decryptCustomer(customer);
+  }
+
+  private decryptCustomer(customer: KycCustomer): KycCustomer {
+    if (customer.providerId) {
+      try {
+        customer.providerId = this.encryptionService.decrypt(customer.providerId);
+      } catch {
+        this.logger.warn(`Failed to decrypt providerId for ${customer.stellarPublicKey}`);
+      }
+    }
+    if (customer.documentData) {
+      try {
+        customer.documentData = this.encryptionService.decrypt(customer.documentData);
+      } catch {
+        this.logger.warn(`Failed to decrypt documentData for ${customer.stellarPublicKey}`);
+      }
     }
     return customer;
   }
@@ -50,7 +69,10 @@ export class KycService {
         });
         if (res.ok) {
           const data = await res.json();
-          customer.providerId = data.session_id ?? data.id ?? null;
+          const rawProviderId = data.session_id ?? data.id ?? null;
+          customer.providerId = rawProviderId
+            ? this.encryptionService.encrypt(String(rawProviderId))
+            : null;
         } else {
           this.logger.warn(`KYC provider returned ${res.status} for ${stellarPublicKey}`);
         }
@@ -68,11 +90,12 @@ export class KycService {
     session_id?: string;
     status: string;
   }): Promise<void> {
-    const where = payload.alias
-      ? { stellarPublicKey: payload.alias }
-      : { providerId: payload.session_id };
+    if (!payload.alias) {
+      this.logger.warn(`Webhook received without alias: ${JSON.stringify(payload)}`);
+      return;
+    }
 
-    const customer = await this.repo.findOne({ where: where as any });
+    const customer = await this.repo.findOne({ where: { stellarPublicKey: payload.alias } });
     if (!customer) {
       this.logger.warn(`Webhook received for unknown customer: ${JSON.stringify(where)}`);
       return;

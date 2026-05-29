@@ -46,6 +46,6 @@ import { AuditModule } from '../audit/audit.module';
     ApiKeyAuthGuard,
   ],
   controllers: [AuthController],
-  exports: [JwtAuthGuard, RolesGuard, ApiKeyAuthGuard],
+  exports: [JwtAuthGuard, RolesGuard, ApiKeyAuthGuard, EncryptionService],
 })
 export class AuthModule {}

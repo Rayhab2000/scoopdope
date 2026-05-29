@@ -15,7 +15,12 @@
     "test": "jest",
     "test:integration": "jest --config jest-integration.config.js --runInBand",
     "test:e2e": "jest --config jest-e2e.config.js --runInBand",
-    "test:pact": "jest --testPathPattern=pact"
+    "test:pact": "jest --testPathPattern=pact",
+    "migration:run": "node dist/database/migration-runner.js run",
+    "migration:revert": "node dist/database/migration-runner.js revert",
+    "migration:show": "node dist/database/migration-runner.js show",
+    "migration:create": "typeorm migration:create src/migrations/${NAME:=$(date +%s)}",
+    "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/data-source.ts src/migrations/${NAME:=$(date +%s)}"
   },
   "dependencies": {
     "@aws-sdk/client-comprehend": "^3.758.0",

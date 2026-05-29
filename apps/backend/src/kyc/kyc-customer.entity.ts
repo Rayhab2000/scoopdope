@@ -20,7 +20,10 @@ export class KycCustomer {
   status: KycStatus;
 
   @Column({ nullable: true })
-  providerId: string; // external ID from KYC provider
+  providerId: string;
+
+  @Column({ nullable: true, type: 'text' })
+  documentData: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
