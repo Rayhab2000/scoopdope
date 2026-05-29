@@ -123,43 +123,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scoopdope-analytics"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "soroban-sdk",
-]
-
-[[package]]
-name = "scoopdope-certificate"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "scoopdope-governance"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "scoopdope-shared"
-version = "0.1.0"
-dependencies = [
- "soroban-sdk",
-]
-
-[[package]]
-name = "scoopdope-token"
-version = "0.1.0"
-dependencies = [
- "proptest",
- "soroban-sdk",
-]
-
-[[package]]
 name = "bumpalo"
 version = "3.20.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1200,6 +1163,50 @@ dependencies = [
  "ref-cast",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "scoopdope-analytics"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "soroban-sdk",
+]
+
+[[package]]
+name = "scoopdope-certificate"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "scoopdope-governance"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "scoopdope-grants"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "scoopdope-shared"
+version = "0.1.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
+name = "scoopdope-token"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "soroban-sdk",
 ]
 
 [[package]]

@@ -55,6 +55,7 @@ pub struct MilestoneRecord {
 #[derive(Clone)]
 pub struct ReportRecord {
     pub grant_id: u64,
+    pub milestone_idx: u32,
     pub report_idx: u32,
     pub content: String,
     pub submitted_at: u64,
@@ -84,6 +85,19 @@ impl GrantsContract {
             .instance()
             .set(&DataKey::TokenContract, &token_contract);
         env.storage().instance().set(&DataKey::NextGrantId, &1_u64);
+
+        let grant_contract = env.current_contract_address();
+        let max_allowance: i128 = i128::MAX;
+        let _: () = env.invoke_contract(
+            &token_contract,
+            &symbol_short!("approve"),
+            soroban_sdk::vec![
+                &env,
+                admin.into_val(&env),
+                grant_contract.into_val(&env),
+                max_allowance.into_val(&env),
+            ],
+        );
     }
 
     pub fn get_admin(env: Env) -> Address {
@@ -256,7 +270,7 @@ impl GrantsContract {
         let stored_admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
         assert!(admin == stored_admin, "Only admin can release funds");
 
-        let grant: GrantRecord = env
+        let mut grant: GrantRecord = env
             .storage()
             .persistent()
             .get(&DataKey::Grant(grant_id))
@@ -280,20 +294,47 @@ impl GrantsContract {
             .persistent()
             .extend_ttl(&key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
-        // Transfer tokens to applicant
+        if grant.status == symbol_short!("approved") {
+            grant.status = symbol_short!("active");
+        }
+
+        let mut all_released = true;
+        for idx in 0..grant.milestone_count {
+            let milestone: MilestoneRecord = env
+                .storage()
+                .persistent()
+                .get(&DataKey::GrantMilestone(grant_id, idx))
+                .expect("Milestone not found");
+            if !milestone.released {
+                all_released = false;
+                break;
+            }
+        }
+        if all_released {
+            grant.status = symbol_short!("completed");
+        }
+
+        env.storage().persistent().set(&DataKey::Grant(grant_id), &grant);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Grant(grant_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+
+        // Transfer tokens to applicant via approved allowance
         let token_contract: Address = env
             .storage()
             .instance()
             .get(&DataKey::TokenContract)
             .unwrap();
+        let grant_contract = env.current_contract_address();
         let _: () = env.invoke_contract(
             &token_contract,
-            &symbol_short!("transfer"),
+            &Symbol::new(&env, "transfer_from"),
             soroban_sdk::vec![
                 &env,
+                grant_contract.into_val(&env),
                 admin.into_val(&env),
                 grant.applicant.clone().into_val(&env),
-                milestone.amount.into_val(&env)
+                milestone.amount.into_val(&env),
             ],
         );
 
@@ -311,17 +352,31 @@ impl GrantsContract {
         env: Env,
         applicant: Address,
         grant_id: u64,
+        milestone_idx: u32,
         content: String,
     ) {
         applicant.require_auth();
 
-        let grant: GrantRecord = env
+        let mut grant: GrantRecord = env
             .storage()
             .persistent()
             .get(&DataKey::Grant(grant_id))
             .expect("Grant not found");
 
         assert!(grant.applicant == applicant, "Only grant applicant can report");
+        assert!(
+            grant.status == symbol_short!("approved") || grant.status == symbol_short!("active"),
+            "Grant not approved"
+        );
+
+        let milestone_key = DataKey::GrantMilestone(grant_id, milestone_idx);
+        let mut milestone: MilestoneRecord = env
+            .storage()
+            .persistent()
+            .get(&milestone_key)
+            .expect("Milestone not found");
+
+        assert!(!milestone.released, "Milestone already released");
 
         let report_key = DataKey::GrantReporting(grant_id);
         let mut reports: Vec<ReportRecord> = env
@@ -332,6 +387,7 @@ impl GrantsContract {
 
         let report = ReportRecord {
             grant_id,
+            milestone_idx,
             report_idx: reports.len() as u32,
             content,
             submitted_at: env.ledger().timestamp(),
@@ -343,9 +399,64 @@ impl GrantsContract {
             .persistent()
             .extend_ttl(&report_key, TTL_THRESHOLD, TTL_EXTEND_TO);
 
+        milestone.released = true;
+        milestone.released_at = env.ledger().timestamp();
+        env.storage().persistent().set(&milestone_key, &milestone);
+        env.storage()
+            .persistent()
+            .extend_ttl(&milestone_key, TTL_THRESHOLD, TTL_EXTEND_TO);
+
+        if grant.status == symbol_short!("approved") {
+            grant.status = symbol_short!("active");
+        }
+
+        let mut all_released = true;
+        for idx in 0..grant.milestone_count {
+            let milestone: MilestoneRecord = env
+                .storage()
+                .persistent()
+                .get(&DataKey::GrantMilestone(grant_id, idx))
+                .expect("Milestone not found");
+            if !milestone.released {
+                all_released = false;
+                break;
+            }
+        }
+        if all_released {
+            grant.status = symbol_short!("completed");
+        }
+
+        env.storage().persistent().set(&DataKey::Grant(grant_id), &grant);
+        env.storage()
+            .persistent()
+            .extend_ttl(&DataKey::Grant(grant_id), TTL_THRESHOLD, TTL_EXTEND_TO);
+
+        let token_contract: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::TokenContract)
+            .unwrap();
+        let admin: Address = env.storage().instance().get(&DataKey::Admin).unwrap();
+        let grant_contract = env.current_contract_address();
+        let _: () = env.invoke_contract(
+            &token_contract,
+            &Symbol::new(&env, "transfer_from"),
+            soroban_sdk::vec![
+                &env,
+                grant_contract.into_val(&env),
+                admin.into_val(&env),
+                grant.applicant.clone().into_val(&env),
+                milestone.amount.into_val(&env),
+            ],
+        );
+
         env.events().publish(
             (symbol_short!("grants"), symbol_short!("report")),
-            (grant_id, reports.len() as u32),
+            (grant_id, milestone_idx, reports.len() as u32),
+        );
+        env.events().publish(
+            (symbol_short!("grants"), symbol_short!("released")),
+            (grant_id, milestone_idx, milestone.amount),
         );
     }
 
@@ -409,17 +520,63 @@ impl GrantsContract {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use soroban_sdk::{contract, contractimpl, contracttype};
     use soroban_sdk::testutils::Address as _;
+
+    #[contracttype]
+    enum MockTokenDataKey {
+        Allowance(Address, Address),
+        LatestTransfer(Address),
+    }
+
+    #[contract]
+    struct MockTokenContract;
+
+    #[contractimpl]
+    impl MockTokenContract {
+        pub fn approve(env: Env, owner: Address, spender: Address, amount: i128) {
+            assert!(amount >= 0, "Amount must be non-negative");
+            owner.require_auth();
+            env.storage()
+                .instance()
+                .set(&MockTokenDataKey::Allowance(owner, spender), &amount);
+        }
+
+        pub fn transfer_from(
+            env: Env,
+            spender: Address,
+            from: Address,
+            to: Address,
+            amount: i128,
+        ) {
+            assert!(amount > 0, "Amount must be positive");
+            spender.require_auth();
+
+            let key = MockTokenDataKey::Allowance(from.clone(), spender.clone());
+            let allowance: i128 = env.storage().instance().get(&key).unwrap_or(0);
+            assert!(allowance >= amount, "Allowance exceeded");
+            env.storage()
+                .instance()
+                .set(&key, &(allowance - amount));
+
+            let transfer_key = MockTokenDataKey::LatestTransfer(from.clone());
+            env.storage().instance().set(&transfer_key, &amount);
+            env.events().publish(
+                (symbol_short!("token"), Symbol::new(&env, "transfer_from")),
+                (spender, from, to, amount),
+            );
+        }
+    }
 
     fn setup() -> (Env, GrantsContractClient<'static>, Address, Address) {
         let env = Env::default();
         env.mock_all_auths();
         let contract_id = env.register_contract(None, GrantsContract);
+        let token_id = env.register_contract(None, MockTokenContract);
         let client = GrantsContractClient::new(&env, &contract_id);
         let admin = Address::generate(&env);
-        let token = Address::generate(&env);
-        client.initialize(&admin, &token);
-        (env, client, admin, token)
+        client.initialize(&admin, &token_id);
+        (env, client, admin, token_id)
     }
 
     #[test]
@@ -491,7 +648,7 @@ mod tests {
     }
 
     #[test]
-    fn test_submit_report() {
+    fn test_submit_report_auto_releases_milestone() {
         let (env, client, admin, _) = setup();
         let applicant = Address::generate(&env);
         let title = String::from_str(&env, "Test");
@@ -500,16 +657,25 @@ mod tests {
         let grant_id = client.apply_for_grant(&applicant, &title, &desc, &1000, &1);
         client.approve_grant(&admin, &grant_id);
 
-        let report = String::from_str(&env, "Progress update");
-        client.submit_report(&applicant, &grant_id, &report);
+        let milestone_desc = String::from_str(&env, "First milestone");
+        client.set_milestone(&admin, &grant_id, &0, &milestone_desc, &1000);
+
+        let report = String::from_str(&env, "Milestone completed");
+        client.submit_report(&applicant, &grant_id, &0, &report);
 
         let reports = client.get_grant_reports(&grant_id);
         assert_eq!(reports.len(), 1);
+
+        let milestone = client.get_milestone(&grant_id, &0).unwrap();
+        assert!(milestone.released);
+
+        let grant = client.get_grant(&grant_id).unwrap();
+        assert_eq!(grant.status, symbol_short!("completed"));
     }
 
     #[test]
     fn test_get_applicant_grants() {
-        let (env, client, admin, _) = setup();
+        let (env, client, _admin, _) = setup();
         let applicant = Address::generate(&env);
         let title = String::from_str(&env, "Test");
         let desc = String::from_str(&env, "Test");
