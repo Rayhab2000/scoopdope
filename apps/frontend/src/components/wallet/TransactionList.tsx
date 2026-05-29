@@ -10,6 +10,7 @@ interface Transaction {
   operationCount: number;
   successful: boolean;
   memo?: string;
+  memoType?: string;
   feeCharged: string;
 }
 
@@ -66,36 +67,56 @@ export default function TransactionList({ publicKey }: Props) {
       <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
         Recent Transactions
       </h3>
-      <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-        {transactions.map((tx) => (
-          <li key={tx.id} className="py-2 flex items-center justify-between gap-2 text-xs">
-            <div className="min-w-0">
-              <a
-                href={`${EXPLORER_BASE}/${tx.hash}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-blue-600 dark:text-blue-400 hover:underline truncate block"
-                title={tx.hash}
-              >
-                {tx.hash.slice(0, 8)}…{tx.hash.slice(-8)}
-              </a>
-              <span className="text-gray-500 dark:text-gray-400">
-                {new Date(tx.createdAt).toLocaleString()} · {tx.operationCount} op
-                {tx.operationCount !== 1 ? 's' : ''}
-              </span>
-            </div>
-            <span
-              className={`shrink-0 font-medium ${
-                tx.successful
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-red-500 dark:text-red-400'
-              }`}
-            >
-              {tx.successful ? '✓' : '✗'}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs border-collapse">
+          <thead>
+            <tr className="text-left text-gray-500 dark:text-gray-400 border-b border-gray-200 dark:border-gray-700">
+              <th className="pb-1 pr-3 font-medium">Hash</th>
+              <th className="pb-1 pr-3 font-medium">Date</th>
+              <th className="pb-1 pr-3 font-medium">Memo</th>
+              <th className="pb-1 font-medium text-right">Status</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+            {transactions.map((tx) => (
+              <tr key={tx.id} className="py-2">
+                <td className="py-2 pr-3">
+                  <a
+                    href={`${EXPLORER_BASE}/${tx.hash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-mono text-blue-600 dark:text-blue-400 hover:underline"
+                    title={tx.hash}
+                  >
+                    {tx.hash.slice(0, 8)}…{tx.hash.slice(-8)}
+                  </a>
+                </td>
+                <td className="py-2 pr-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {new Date(tx.createdAt).toLocaleString()}
+                </td>
+                <td className="py-2 pr-3 text-gray-700 dark:text-gray-300 max-w-[120px] truncate">
+                  {tx.memo && tx.memoType && tx.memoType !== 'none' ? (
+                    <span title={tx.memo}>{tx.memo}</span>
+                  ) : (
+                    <span className="text-gray-400 dark:text-gray-600">—</span>
+                  )}
+                </td>
+                <td className="py-2 text-right">
+                  <span
+                    className={
+                      tx.successful
+                        ? 'text-green-600 dark:text-green-400 font-medium'
+                        : 'text-red-500 dark:text-red-400 font-medium'
+                    }
+                  >
+                    {tx.successful ? '✓' : '✗'}
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
