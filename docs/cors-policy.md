@@ -1,44 +1,42 @@
 # CORS Policy
 
-## Overview
-
-scoopdope uses environment-aware CORS configuration. In **production**, only explicitly allowed origins are permitted. In **development**, all origins are allowed for convenience.
+The backend enforces a strict Cross-Origin Resource Sharing (CORS) policy configured entirely via environment variables.
 
 ## Configuration
 
-Set these environment variables:
-
-| Variable | Description | Default |
+| Variable | Default | Description |
 |---|---|---|
-| `CORS_ORIGINS` | Comma-separated list of allowed origins | `http://localhost:3001` |
-| `CORS_CREDENTIALS` | Allow cookies/auth headers cross-origin | `false` |
-| `CORS_MAX_AGE` | Preflight cache duration in seconds | `86400` (24h) |
+| `CORS_ORIGINS` | `http://localhost:3001` | Comma-separated list of allowed origins |
+| `CORS_CREDENTIALS` | `false` | Whether to allow cookies/auth headers cross-origin |
+| `CORS_MAX_AGE` | `86400` | Preflight cache duration in seconds (24 h) |
 
-### Example (production)
+### Example `.env`
+
 ```env
-CORS_ORIGINS=https://app.Scoopdope.io,https://www.Scoopdope.io
+CORS_ORIGINS=https://app.scoopdope.com,https://admin.scoopdope.com
 CORS_CREDENTIALS=true
 CORS_MAX_AGE=86400
 ```
 
-## Allowed Headers
+## Behaviour
 
-- `Content-Type`
-- `Authorization`
-- `X-API-KEY`
-- `X-Webhook-Signature`
+- **Development** (`NODE_ENV != production`): all origins are allowed (`origin: true`) to ease local development.
+- **Production** (`NODE_ENV=production`): only origins listed in `CORS_ORIGINS` are permitted.
 
-## Allowed Methods
+Allowed HTTP methods: `GET HEAD PUT PATCH POST DELETE OPTIONS`
 
-`GET`, `HEAD`, `PUT`, `PATCH`, `POST`, `DELETE`, `OPTIONS`
+Allowed request headers: `Content-Type`, `Authorization`, `X-API-KEY`, `X-Webhook-Signature`
 
-## Preflight Caching
+## Adding a new trusted origin
 
-Preflight (`OPTIONS`) responses are cached for `CORS_MAX_AGE` seconds (default 24h), reducing latency for repeated cross-origin requests.
+Append the URL to `CORS_ORIGINS` (comma-separated, no spaces) and redeploy:
 
-## Behavior by Environment
+```env
+CORS_ORIGINS=https://app.scoopdope.com,https://admin.scoopdope.com,https://new-panel.scoopdope.com
+```
 
-| Environment | Origin Policy |
-|---|---|
-| `production` | Only `CORS_ORIGINS` list |
-| `development` / `test` | All origins (`*`) |
+## Security notes
+
+- Never add `*` to `CORS_ORIGINS` in production — it defeats the policy.
+- `CORS_CREDENTIALS=true` requires an explicit origin list; browsers reject wildcard + credentials.
+- Preflight responses are cached for `CORS_MAX_AGE` seconds; lower this value if origins change frequently.

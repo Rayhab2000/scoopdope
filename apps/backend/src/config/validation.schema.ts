@@ -41,6 +41,11 @@ export const validationSchema = Joi.object({
   // Frontend
   FRONTEND_URL: Joi.string().uri().default('http://localhost:3001'),
 
+  // CORS
+  CORS_ORIGINS: Joi.string().default('http://localhost:3001'),
+  CORS_CREDENTIALS: Joi.boolean().default(false),
+  CORS_MAX_AGE: Joi.number().integer().min(0).default(86400),
+
   // Google OAuth (optional)
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_SECRET: Joi.string().optional(),
