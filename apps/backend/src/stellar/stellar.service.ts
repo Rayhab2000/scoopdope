@@ -56,6 +56,25 @@ export class StellarService {
     return account.balances;
   }
 
+  async getTransactions(publicKey: string, limit = 10): Promise<object[]> {
+    const records = await this.server
+      .transactions()
+      .forAccount(publicKey)
+      .limit(limit)
+      .order('desc')
+      .call();
+    return records.records.map((tx) => ({
+      id: tx.id,
+      hash: tx.hash,
+      createdAt: tx.created_at,
+      operationCount: tx.operation_count,
+      successful: tx.successful,
+      memo: tx.memo,
+      memoType: tx.memo_type,
+      feeCharged: tx.fee_charged,
+    }));
+  }
+
   async fundTestnetAccount(publicKey: string): Promise<{ message: string }> {
     const network = this.configService.get<string>('stellar.network');
     if (network !== 'testnet') {
@@ -79,7 +98,7 @@ export class StellarService {
     try {
       await this.retryWithBackoff(() => this.recordProgressOnChain(recipientPublicKey, courseId));
       this.logger.log(`Progress recorded on Soroban for ${courseId}`);
-    } catch (error) {
+    } catch (error: any) {
       this.logger.error(
         `Failed to record progress on Soroban: ${error.message}, falling back to Horizon`
       );
@@ -92,7 +111,7 @@ export class StellarService {
           this.storeCredentialMetadata(recipientPublicKey, metadata)
         );
         this.logger.log(`Metadata stored on-chain for ${metadata.courseName}`);
-      } catch (error) {
+      } catch (error: any) {
         this.logger.error(`Failed to store metadata on-chain: ${error.message}`);
       }
     }

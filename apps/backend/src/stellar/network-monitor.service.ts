@@ -35,7 +35,7 @@ export class NetworkMonitorService implements OnModuleInit {
         latencyMs: latency,
         lastChecked: new Date().toISOString(),
       };
-    } catch (error) {
+    } catch (error: any) {
       return {
         status: 'down',
         url,
