@@ -5,18 +5,44 @@ environment = "prod"
 # Network Configuration
 vpc_cidr = "10.0.0.0/16"
 
+# Domain (optional — set for HTTPS + Route53)
+# domain_name = "scoopdope.com"
+# route53_zone_id = "Z0123456789ABCDEF"  # existing zone (omit to create new)
+
+# HTTPS / ACM
+# acm_certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/xxx"  # existing cert (omit to create new)
+
+# WAF
+waf_enabled  = true
+allowed_cidrs = ["0.0.0.0/0"]
+
 # Database Configuration
 db_name           = "Scoopdope"
-db_username       = "admin"
-db_password       = "change-me-in-production"
+db_username       = "postgres"
 db_instance_class = "db.t3.micro"
+multi_az          = true
+db_deletion_protection = true
+backup_retention_period = 30
+performance_insights_enabled = true
 
 # Redis Configuration
 redis_node_type = "cache.t3.micro"
 
-# Application Images
-backend_image  = "your-registry/scoopdope-backend:latest"
-frontend_image = "your-registry/scoopdope-frontend:latest"
+# ECR Repository Names
+ecr_backend_repo_name  = "scoopdope-backend"
+ecr_frontend_repo_name = "scoopdope-frontend"
+
+# Application Images (pushed to ECR by CI/CD)
+backend_image  = "123456789012.dkr.ecr.us-east-1.amazonaws.com/scoopdope-backend:latest"
+frontend_image = "123456789012.dkr.ecr.us-east-1.amazonaws.com/scoopdope-frontend:latest"
+
+# ECS Auto Scaling
+asg_min_capacity    = 2
+asg_max_capacity    = 10
+asg_desired_capacity = 2
+
+# Monitoring
+# sns_alarm_email = "alerts@example.com"
 
 # GitHub OIDC
 github_org  = "your-github-org"

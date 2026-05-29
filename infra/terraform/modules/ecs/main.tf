@@ -33,8 +33,18 @@ resource "aws_ecs_task_definition" "backend" {
     environment = [
       { name = "PORT", value = "3000" },
       { name = "DATABASE_HOST", value = var.db_host },
+      { name = "DATABASE_PORT", value = "5432" },
+      { name = "DATABASE_USERNAME", value = var.db_username },
+      { name = "DATABASE_NAME", value = var.db_name },
       { name = "REDIS_URL", value = "redis://${var.redis_host}:6379" }
     ]
+
+    secrets = var.db_secret_arn != "" ? [
+      {
+        name      = "DATABASE_PASSWORD"
+        valueFrom = var.db_secret_arn
+      }
+    ] : []
 
     logConfiguration = {
       logDriver = "awslogs"
@@ -64,7 +74,7 @@ resource "aws_ecs_service" "backend" {
   name            = "${var.environment}-scoopdope-backend"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.backend.arn
-  desired_count   = 2
+  desired_count   = var.asg_desired_capacity
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -77,6 +87,10 @@ resource "aws_ecs_service" "backend" {
     target_group_arn = aws_lb_target_group.backend.arn
     container_name   = "backend"
     container_port   = 3000
+  }
+
+  lifecycle {
+    ignore_changes = [desired_count]
   }
 
   depends_on = [aws_lb_target_group.backend]
@@ -164,6 +178,38 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
+resource "aws_iam_role_policy" "ecs_execution_secrets" {
+  name = "${var.environment}-scoopdope-ecs-execution-secrets"
+  role = aws_iam_role.ecs_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "SecretsManagerAccess"
+        Effect = "Allow"
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Resource = var.db_secret_arn != "" ? [var.db_secret_arn] : []
+      },
+      {
+        Sid    = "KMSDecrypt"
+        Effect = "Allow"
+        Action = [
+          "kms:Decrypt"
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService" = "secretsmanager.${data.aws_region.current.name}.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role" "ecs_task" {
   name = "${var.environment}-scoopdope-ecs-task-role"
 
@@ -236,7 +282,7 @@ resource "aws_ecs_service" "frontend" {
   name            = "${var.environment}-scoopdope-frontend"
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = 2
+  desired_count   = var.asg_desired_capacity
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -249,6 +295,10 @@ resource "aws_ecs_service" "frontend" {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "frontend"
     container_port   = 3001
+  }
+
+  lifecycle {
+    ignore_changes = [desired_count]
   }
 
   depends_on = [aws_lb_target_group.frontend]
@@ -307,5 +357,81 @@ resource "aws_cloudwatch_log_group" "frontend" {
   tags = {
     Name        = "${var.environment}-scoopdope-frontend-logs"
     Environment = var.environment
+  }
+}
+
+resource "aws_appautoscaling_target" "backend" {
+  max_capacity       = var.asg_max_capacity
+  min_capacity       = var.asg_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.backend.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "backend_cpu" {
+  name               = "${var.environment}-scoopdope-backend-cpu-autoscale"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.backend.resource_id
+  scalable_dimension = aws_appautoscaling_target.backend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.backend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value = 70
+  }
+}
+
+resource "aws_appautoscaling_policy" "backend_memory" {
+  name               = "${var.environment}-scoopdope-backend-memory-autoscale"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.backend.resource_id
+  scalable_dimension = aws_appautoscaling_target.backend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.backend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    target_value = 70
+  }
+}
+
+resource "aws_appautoscaling_target" "frontend" {
+  max_capacity       = var.asg_max_capacity
+  min_capacity       = var.asg_min_capacity
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.frontend.name}"
+  scalable_dimension = "ecs:service:DesiredCount"
+  service_namespace  = "ecs"
+}
+
+resource "aws_appautoscaling_policy" "frontend_cpu" {
+  name               = "${var.environment}-scoopdope-frontend-cpu-autoscale"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.frontend.resource_id
+  scalable_dimension = aws_appautoscaling_target.frontend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.frontend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+    target_value = 70
+  }
+}
+
+resource "aws_appautoscaling_policy" "frontend_memory" {
+  name               = "${var.environment}-scoopdope-frontend-memory-autoscale"
+  policy_type        = "TargetTrackingScaling"
+  resource_id        = aws_appautoscaling_target.frontend.resource_id
+  scalable_dimension = aws_appautoscaling_target.frontend.scalable_dimension
+  service_namespace  = aws_appautoscaling_target.frontend.service_namespace
+
+  target_tracking_scaling_policy_configuration {
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageMemoryUtilization"
+    }
+    target_value = 70
   }
 }
