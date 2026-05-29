@@ -180,6 +180,7 @@ Configure a report endpoint:
 - **Middleware**: `middleware.ts`
 - **Hooks**: `src/hooks/useCSPNonce.ts`
 - **Next.js Config**: `next.config.js`
+ - **Server Head (nonce injection)**: `src/app/head.tsx`
 
 ## References
 
