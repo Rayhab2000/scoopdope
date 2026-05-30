@@ -7,9 +7,10 @@ import { CoursesModule } from '../courses/courses.module';
 import { CourseVersion } from '../courses/course-version.entity';
 import { CourseVersioningService } from '../courses/course-versioning.service';
 import { Course } from '../courses/course.entity';
+import { MetricsModule } from '../metrics/metrics.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Enrollment, CourseVersion, Course]), CoursesModule],
+  imports: [TypeOrmModule.forFeature([Enrollment, CourseVersion, Course]), CoursesModule, MetricsModule],
   providers: [EnrollmentsService, CourseVersioningService],
   controllers: [EnrollmentsController],
   exports: [EnrollmentsService],

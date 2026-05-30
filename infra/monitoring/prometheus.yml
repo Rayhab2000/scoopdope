@@ -1,6 +1,16 @@
 global:
   scrape_interval: 15s
   evaluation_interval: 15s
+  external_labels:
+    monitor: 'scoopdope'
+
+rule_files:
+  - '/etc/prometheus/prometheus-rules.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
 
 scrape_configs:
   - job_name: 'scoopdope-backend'
@@ -8,15 +18,26 @@ scrape_configs:
       - targets: ['host.docker.internal:3000']
     metrics_path: '/metrics'
     scrape_interval: 10s
+    scrape_timeout: 8s
+    metrics_relabel_configs:
+      - source_labels: [__name__]
+        regex: '(http_requests_total|http_request_duration_seconds_.*|enrollments_total|courses_completed_total|recommendations_served_total|credential_issued_total|bst_minted_total|cache_.*|stellar_rpc_latency_.*|health_check_.*|app_.*|process_.*|nodejs_.*)'
+        action: keep
 
   - job_name: 'scoopdope-health'
     static_configs:
       - targets: ['host.docker.internal:3000']
     metrics_path: '/health'
     scrape_interval: 30s
+    scrape_timeout: 10s
 
   - job_name: 'scoopdope-version'
     static_configs:
       - targets: ['host.docker.internal:3000']
     metrics_path: '/health/version'
     scrape_interval: 60s
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s

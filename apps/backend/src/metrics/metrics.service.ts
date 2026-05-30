@@ -3,24 +3,37 @@ import { Counter, Histogram, Gauge, register } from 'prom-client';
 
 @Injectable()
 export class MetricsService {
-  private readonly httpRequestsTotal: Counter;
-  private readonly credentialIssuedTotal: Counter;
-  private readonly bstMintedTotal: Counter;
-  private readonly stellarRpcLatency: Histogram;
-  private readonly cacheHitsTotal: Counter;
-  private readonly cacheMissesTotal: Counter;
-  private readonly healthCheckDuration: Histogram;
-  private readonly healthCheckStatus: Gauge;
-  private readonly uptimeGauge: Gauge;
-  private readonly activeConnections: Gauge;
-  private readonly databasePoolSize: Gauge;
-  private readonly redisConnectedClients: Gauge;
+  readonly httpRequestsTotal: Counter;
+  readonly httpRequestDuration: Histogram;
+  readonly credentialIssuedTotal: Counter;
+  readonly bstMintedTotal: Counter;
+  readonly stellarRpcLatency: Histogram;
+  readonly cacheHitsTotal: Counter;
+  readonly cacheMissesTotal: Counter;
+  readonly healthCheckDuration: Histogram;
+  readonly healthCheckStatus: Gauge;
+  readonly uptimeGauge: Gauge;
+  readonly activeConnections: Gauge;
+  readonly databasePoolSize: Gauge;
+  readonly redisConnectedClients: Gauge;
+  readonly enrollmentsTotal: Counter;
+  readonly coursesCompletedTotal: Counter;
+  readonly recommendationsServedTotal: Counter;
+  readonly activeUsersGauge: Gauge;
 
   constructor() {
     this.httpRequestsTotal = new Counter({
       name: 'http_requests_total',
       help: 'Total number of HTTP requests',
       labelNames: ['method', 'route', 'status_code'],
+      registers: [register],
+    });
+
+    this.httpRequestDuration = new Histogram({
+      name: 'http_request_duration_seconds',
+      help: 'HTTP request duration in seconds',
+      labelNames: ['method', 'route', 'status_code'],
+      buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
       registers: [register],
     });
 
@@ -100,17 +113,53 @@ export class MetricsService {
       registers: [register],
     });
 
+    this.enrollmentsTotal = new Counter({
+      name: 'enrollments_total',
+      help: 'Total number of course enrollments',
+      labelNames: ['course_id', 'level'],
+      registers: [register],
+    });
+
+    this.coursesCompletedTotal = new Counter({
+      name: 'courses_completed_total',
+      help: 'Total number of course completions',
+      labelNames: ['course_id', 'level'],
+      registers: [register],
+    });
+
+    this.recommendationsServedTotal = new Counter({
+      name: 'recommendations_served_total',
+      help: 'Total number of recommendation responses served',
+      labelNames: ['count'],
+      registers: [register],
+    });
+
+    this.activeUsersGauge = new Gauge({
+      name: 'app_active_users',
+      help: 'Number of active users by time window',
+      labelNames: ['window'],
+      registers: [register],
+    });
+
     setInterval(() => {
       this.uptimeGauge.set(process.uptime());
     }, 15000);
   }
 
   incrementHttpRequests(method: string, route: string, statusCode: number) {
-    this.httpRequestsTotal.inc({
-      method,
-      route,
-      status_code: statusCode.toString(),
-    });
+    this.httpRequestsTotal.inc({ method, route, status_code: statusCode.toString() });
+  }
+
+  observeHttpRequestDuration(
+    method: string,
+    route: string,
+    statusCode: number,
+    durationSeconds: number,
+  ) {
+    this.httpRequestDuration.observe(
+      { method, route, status_code: statusCode.toString() },
+      durationSeconds,
+    );
   }
 
   incrementCredentialIssued(credentialType: string) {
@@ -151,5 +200,21 @@ export class MetricsService {
 
   setRedisConnectedClients(count: number) {
     this.redisConnectedClients.set(count);
+  }
+
+  incrementEnrollment(courseId: string, level: string) {
+    this.enrollmentsTotal.inc({ course_id: courseId, level });
+  }
+
+  incrementCourseCompleted(courseId: string, level: string) {
+    this.coursesCompletedTotal.inc({ course_id: courseId, level });
+  }
+
+  incrementRecommendationsServed(count: number) {
+    this.recommendationsServedTotal.inc({ count: count.toString() });
+  }
+
+  setActiveUsers(window: string, count: number) {
+    this.activeUsersGauge.set({ window }, count);
   }
 }

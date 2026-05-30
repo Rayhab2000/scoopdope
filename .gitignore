@@ -10,3 +10,8 @@ target/
 *.log
 .DS_Store
 coverage/
+__snapshots__/
+testsnapshot/
+report/
+.cache/
+*.snap

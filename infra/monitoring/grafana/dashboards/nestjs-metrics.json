@@ -1,8 +1,8 @@
 {
   "dashboard": {
-    "title": "Scoopdope - NestJS Metrics",
-    "uid": "Scoopdope-nestjs",
-    "tags": ["nestjs", "scoopdope"],
+    "title": "Scoopdope - Platform Observability",
+    "uid": "Scoopdope-observability",
+    "tags": ["scoopdope", "nestjs", "platform"],
     "timezone": "browser",
     "refresh": "30s",
     "time": { "from": "now-1h", "to": "now" },
@@ -11,7 +11,7 @@
         "id": 1,
         "title": "HTTP Request Rate (req/s)",
         "type": "timeseries",
-        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "gridPos": { "x": 0, "y": 0, "w": 8, "h": 8 },
         "targets": [
           {
             "expr": "sum(rate(http_requests_total[5m])) by (method, route, status_code)",
@@ -26,7 +26,7 @@
         "id": 2,
         "title": "HTTP Error Rate (5xx)",
         "type": "timeseries",
-        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+        "gridPos": { "x": 8, "y": 0, "w": 8, "h": 8 },
         "targets": [
           {
             "expr": "sum(rate(http_requests_total{status_code=~\"5..\"}[5m]))",
@@ -39,9 +39,67 @@
       },
       {
         "id": 3,
-        "title": "Credentials Issued (total)",
+        "title": "HTTP Request Duration (p50 / p95 / p99)",
+        "type": "timeseries",
+        "gridPos": { "x": 16, "y": 0, "w": 8, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+            "legendFormat": "p99"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "s" }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Business Metrics",
         "type": "stat",
-        "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
+        "gridPos": { "x": 0, "y": 8, "w": 3, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(enrollments_total)",
+            "legendFormat": "Total Enrollments"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "fixed", "fixedColor": "blue" }
+          }
+        },
+        "description": "Total course enrollments"
+      },
+      {
+        "id": 5,
+        "title": "Courses Completed",
+        "type": "stat",
+        "gridPos": { "x": 3, "y": 8, "w": 3, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(courses_completed_total)",
+            "legendFormat": "Total Completed"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "fixed", "fixedColor": "green" }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Credentials Issued",
+        "type": "stat",
+        "gridPos": { "x": 6, "y": 8, "w": 3, "h": 4 },
         "targets": [
           {
             "expr": "sum(credential_issued_total)",
@@ -50,10 +108,10 @@
         ]
       },
       {
-        "id": 4,
-        "title": "BST Tokens Minted (total)",
+        "id": 7,
+        "title": "BST Tokens Minted",
         "type": "stat",
-        "gridPos": { "x": 6, "y": 8, "w": 6, "h": 4 },
+        "gridPos": { "x": 9, "y": 8, "w": 3, "h": 4 },
         "targets": [
           {
             "expr": "sum(bst_minted_total)",
@@ -62,10 +120,82 @@
         ]
       },
       {
-        "id": 5,
+        "id": 8,
+        "title": "Recommendations Served",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 8, "w": 3, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(recommendations_served_total)",
+            "legendFormat": "Total"
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Health Check Status",
+        "type": "stat",
+        "gridPos": { "x": 15, "y": 8, "w": 3, "h": 4 },
+        "targets": [
+          {
+            "expr": "sum(health_check_up{probe=\"readiness\"})",
+            "legendFormat": "Ready"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [{ "value": 0, "color": "red" }, { "value": 1, "color": "green" }] }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Active Users (24h)",
+        "type": "stat",
+        "gridPos": { "x": 18, "y": 8, "w": 3, "h": 4 },
+        "targets": [
+          {
+            "expr": "app_active_users{window=\"24h\"}",
+            "legendFormat": "Active Users"
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Enrollment Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 12, "w": 8, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(enrollments_total[1h])) by (level)",
+            "legendFormat": "{{level}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "ops" }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Completion Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 8, "y": 12, "w": 8, "h": 8 },
+        "targets": [
+          {
+            "expr": "sum(rate(courses_completed_total[1h])) by (level)",
+            "legendFormat": "{{level}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "ops" }
+        }
+      },
+      {
+        "id": 13,
         "title": "Credential Issuance Rate",
         "type": "timeseries",
-        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+        "gridPos": { "x": 16, "y": 12, "w": 8, "h": 8 },
         "targets": [
           {
             "expr": "sum(rate(credential_issued_total[5m])) by (credential_type)",
@@ -77,10 +207,25 @@
         }
       },
       {
-        "id": 6,
+        "id": 14,
+        "title": "Cache Hit Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 20, "w": 8, "h": 6 },
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hits_total[5m])) by (cache) / (sum(rate(cache_hits_total[5m])) by (cache) + sum(rate(cache_misses_total[5m])) by (cache)) * 100",
+            "legendFormat": "{{cache}}"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percent" }
+        }
+      },
+      {
+        "id": 15,
         "title": "Stellar RPC Latency p50 / p95 / p99",
         "type": "timeseries",
-        "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+        "gridPos": { "x": 8, "y": 20, "w": 8, "h": 6 },
         "targets": [
           {
             "expr": "histogram_quantile(0.50, sum(rate(stellar_rpc_latency_seconds_bucket[5m])) by (le, method))",
@@ -100,10 +245,10 @@
         }
       },
       {
-        "id": 7,
+        "id": 16,
         "title": "Node.js Memory Usage",
         "type": "timeseries",
-        "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+        "gridPos": { "x": 16, "y": 20, "w": 8, "h": 6 },
         "targets": [
           {
             "expr": "process_resident_memory_bytes",
@@ -123,10 +268,10 @@
         }
       },
       {
-        "id": 8,
+        "id": 17,
         "title": "Event Loop Lag",
         "type": "timeseries",
-        "gridPos": { "x": 0, "y": 20, "w": 12, "h": 6 },
+        "gridPos": { "x": 0, "y": 26, "w": 8, "h": 6 },
         "targets": [
           {
             "expr": "nodejs_eventloop_lag_seconds",
@@ -138,10 +283,10 @@
         }
       },
       {
-        "id": 9,
+        "id": 18,
         "title": "CPU Usage",
         "type": "timeseries",
-        "gridPos": { "x": 12, "y": 20, "w": 12, "h": 6 },
+        "gridPos": { "x": 8, "y": 26, "w": 8, "h": 6 },
         "targets": [
           {
             "expr": "rate(process_cpu_user_seconds_total[1m])",
@@ -155,10 +300,30 @@
         "fieldConfig": {
           "defaults": { "unit": "percentunit" }
         }
+      },
+      {
+        "id": 19,
+        "title": "Active Connections & DB Pool",
+        "type": "timeseries",
+        "gridPos": { "x": 16, "y": 26, "w": 8, "h": 6 },
+        "targets": [
+          {
+            "expr": "app_active_connections",
+            "legendFormat": "Active Connections"
+          },
+          {
+            "expr": "app_database_pool_size",
+            "legendFormat": "DB Pool"
+          },
+          {
+            "expr": "app_redis_connected_clients",
+            "legendFormat": "Redis Clients"
+          }
+        ]
       }
     ],
     "schemaVersion": 38,
-    "version": 2
+    "version": 3
   },
   "overwrite": true
 }

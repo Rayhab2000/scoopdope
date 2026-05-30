@@ -8,6 +8,7 @@ import { CredentialsService } from '../credentials/credentials.service';
 import { UsersService } from '../users/users.service';
 import { StreaksService } from '../streaks/streaks.service';
 import { BundlesService } from '../bundles/bundles.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class ProgressService {
@@ -17,7 +18,8 @@ export class ProgressService {
     private credentialsService: CredentialsService,
     private usersService: UsersService,
     private streaksService: StreaksService,
-    private bundlesService: BundlesService
+    private bundlesService: BundlesService,
+    private metrics: MetricsService,
   ) {}
 
   async record(userId: string, dto: RecordProgressDto, stellarPublicKey: string) {
@@ -60,6 +62,8 @@ export class ProgressService {
 
     // Auto-issue credential at 100%
     if (dto.progressPct >= 100) {
+      this.metrics.incrementCourseCompleted(dto.courseId, 'all');
+
       await this.credentialsService.issue(userId, dto.courseId, stellarPublicKey);
 
       // Mint 50 BST to referrer on first course completion

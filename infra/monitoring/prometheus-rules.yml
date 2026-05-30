@@ -1,0 +1,108 @@
+groups:
+  - name: scoopdope-backend
+    interval: 30s
+    rules:
+      - alert: HighHttpErrorRate
+        expr: |
+          sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+          /
+          sum(rate(http_requests_total[5m])) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP error rate ({{ $value | humanizePercentage }})"
+          description: "Error rate is above 5% for the last 2 minutes."
+
+      - alert: HighHttpLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 3m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High request latency (p95 > 2s)"
+          description: "95th percentile request latency is {{ $value }}s."
+
+      - alert: BackendDown
+        expr: up{job="scoopdope-backend"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backend is down"
+          description: "The scoopdope backend has been unreachable for 1 minute."
+
+      - alert: HealthCheckFailing
+        expr: health_check_up{probe="readiness"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Readiness check failing"
+          description: "The backend readiness health check has been failing for 2 minutes."
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes > 512 * 1024 * 1024
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage ({{ $value | humanize1024 }})"
+          description: "Memory usage is above 512 MB."
+
+      - alert: HighEventLoopLag
+        expr: nodejs_eventloop_lag_seconds > 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High event loop lag ({{ $value }}s)"
+          description: "Event loop lag is above 1 second."
+
+  - name: scoopdope-business
+    interval: 60s
+    rules:
+      - alert: LowEnrollmentRate
+        expr: rate(enrollments_total[24h]) < 1
+        for: 6h
+        labels:
+          severity: info
+        annotations:
+          summary: "Low enrollment rate"
+          description: "Fewer than 1 enrollment per hour over the last 24 hours."
+
+      - alert: NoRecommendationsServed
+        expr: rate(recommendations_served_total[1h]) == 0
+        for: 2h
+        labels:
+          severity: warning
+        annotations:
+          summary: "No recommendations served"
+          description: "No recommendation requests in the last 2 hours."
+
+  - name: scoopdope-stellar
+    interval: 30s
+    rules:
+      - alert: StellarRpcDegraded
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(stellar_rpc_latency_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Stellar RPC latency degraded (p95 > 2s)"
+          description: "Stellar RPC 95th percentile latency is {{ $value }}s."
+
+      - alert: StellarRpcErrors
+        expr: rate(stellar_rpc_latency_seconds_count{status="error"}[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Stellar RPC errors detected"
+          description: "Stellar RPC calls are failing at rate {{ $value }}/s."

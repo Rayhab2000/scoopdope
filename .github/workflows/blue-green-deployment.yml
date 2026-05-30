@@ -14,15 +14,27 @@ on:
       image-tag:
         description: 'Docker image tag to deploy'
         required: true
+      run-migrations:
+        description: 'Run database migrations before deploy'
+        type: boolean
+        default: true
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}/backend
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: blue-green-${{ github.event.inputs.environment }}
+  cancel-in-progress: false
 
 jobs:
-  validate-image:
-    name: Validate Docker Image
+  validate:
+    name: Validate Inputs and Images
     runs-on: ubuntu-latest
+    outputs:
+      backend-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.event.inputs.image-tag }}
+      frontend-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.event.inputs.image-tag }}
+      has-frontend-image: ${{ steps.check-frontend.outputs.exists }}
 
     steps:
       - name: Checkout
@@ -35,22 +47,50 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify image exists
+      - name: Verify backend image exists
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.image-tag }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.event.inputs.image-tag }}"
           echo "Checking image: $IMAGE"
-          
           if docker pull "$IMAGE"; then
-            echo "✅ Image verified: $IMAGE"
+            echo "✅ Backend image verified: $IMAGE"
           else
-            echo "❌ Image not found: $IMAGE"
+            echo "❌ Backend image not found: $IMAGE"
             exit 1
           fi
 
-  deployment-approval:
+      - name: Verify frontend image exists
+        id: check-frontend
+        continue-on-error: true
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.event.inputs.image-tag }}"
+          if docker pull "$IMAGE"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "✅ Frontend image verified: $IMAGE"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+            echo "⚠️ Frontend image not found — skipping frontend deployment"
+          fi
+
+      - name: Validate required secrets
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          ROUTE53_ZONE_ID: ${{ secrets.ROUTE53_ZONE_ID }}
+        run: |
+          MISSING=""
+          [[ -z "$AWS_ROLE_ARN" ]] && MISSING="$MISSING AWS_ROLE_ARN"
+          [[ -z "$AWS_REGION" ]] && MISSING="$MISSING AWS_REGION"
+          [[ -z "$ROUTE53_ZONE_ID" ]] && MISSING="$MISSING ROUTE53_ZONE_ID"
+          if [[ -n "$MISSING" ]]; then
+            echo "❌ Missing required secrets:$MISSING"
+            exit 1
+          fi
+          echo "✅ All required secrets are set"
+
+  approval:
     name: Request Deployment Approval
     runs-on: ubuntu-latest
-    needs: validate-image
+    needs: validate
     if: github.event.inputs.environment == 'production'
 
     environment:
@@ -64,10 +104,10 @@ jobs:
           echo "Environment: ${{ github.event.inputs.environment }}"
           echo "Image tag: ${{ github.event.inputs.image-tag }}"
 
-  get-current-environment:
+  detect-environment:
     name: Determine Current Active Environment
     runs-on: ubuntu-latest
-    needs: validate-image
+    needs: validate
 
     outputs:
       active-env: ${{ steps.current.outputs.active }}
@@ -77,29 +117,97 @@ jobs:
       - name: Determine active environment
         id: current
         run: |
-          # Query current active environment (blue or green)
-          # This would typically query your infrastructure (ECS, K8s, etc.)
-          ACTIVE_ENV=$(curl -s https://api.scoopdope.example.com/health/environment || echo "blue")
+          ACTIVE_ENV=$(curl -sf --connect-timeout 5 --max-time 10 \
+            "https://api.scoopdope.example.com/health/environment" \
+            || echo "blue")
           
-          if [ "$ACTIVE_ENV" = "blue" ]; then
-            echo "active=blue" >> $GITHUB_OUTPUT
-            echo "inactive=green" >> $GITHUB_OUTPUT
-          else
-            echo "active=green" >> $GITHUB_OUTPUT
-            echo "inactive=blue" >> $GITHUB_OUTPUT
+          if [[ "$ACTIVE_ENV" != "blue" && "$ACTIVE_ENV" != "green" ]]; then
+            echo "⚠️ Unexpected environment response: $ACTIVE_ENV, defaulting to blue"
+            ACTIVE_ENV="blue"
           fi
-          
+
+          if [ "$ACTIVE_ENV" = "blue" ]; then
+            echo "active=blue" >> "$GITHUB_OUTPUT"
+            echo "inactive=green" >> "$GITHUB_OUTPUT"
+          else
+            echo "active=green" >> "$GITHUB_OUTPUT"
+            echo "inactive=blue" >> "$GITHUB_OUTPUT"
+          fi
+
           echo "Current active environment: $ACTIVE_ENV"
 
-  deploy-to-inactive:
-    name: Deploy to Inactive Environment (${{ needs.get-current-environment.outputs.inactive-env }})
+  run-migrations:
+    name: Run Database Migrations
     runs-on: ubuntu-latest
-    needs: [validate-image, get-current-environment, deployment-approval]
-    if: always() && needs.validate-image.result == 'success' && (github.event.inputs.environment == 'staging' || needs.deployment-approval.result == 'success')
+    needs: [validate, approval, detect-environment]
+    if: |
+      !failure() && !cancelled() &&
+      github.event.inputs.run-migrations == 'true'
 
     permissions:
       id-token: write
       contents: read
+
+    environment:
+      name: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-Migrations
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Run database migrations on inactive environment
+        run: |
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.event.inputs.image-tag }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+
+          echo "📦 Running migrations using image: $IMAGE"
+          
+          TASK_DEF_FAMILY="${{ github.event.inputs.environment }}-scoopdope-backend"
+          LATEST_TASK_DEF=$(aws ecs describe-task-definition \
+            --task-definition "$TASK_DEF_FAMILY" \
+            --query 'taskDefinition.taskDefinitionArn' \
+            --output text)
+
+          aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$LATEST_TASK_DEF" \
+            --launch-type FARGATE \
+            --network-configuration "$(aws ecs describe-services \
+              --cluster "$CLUSTER" \
+              --services "scoopdope-backend-${INACTIVE}" \
+              --query 'services[0].networkConfiguration' \
+              --output json)" \
+            --overrides '{
+              "containerOverrides": [{
+                "name": "backend",
+                "command": ["node", "dist/main", "migration:run"]
+              }]
+            }' \
+            --region "${{ secrets.AWS_REGION }}"
+
+          echo "✅ Migration task submitted — review CloudWatch logs for output"
+          echo "Log group: /ecs/${{ github.event.inputs.environment }}-scoopdope-backend"
+
+  deploy-backend:
+    name: Deploy Backend to Inactive Environment
+    runs-on: ubuntu-latest
+    needs: [validate, detect-environment, run-migrations]
+    if: success()
+
+    permissions:
+      id-token: write
+      contents: read
+
+    outputs:
+      deployment-status: ${{ steps.deploy.outputs.status }}
 
     environment:
       name: ${{ github.event.inputs.environment }}
@@ -113,112 +221,370 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          role-session-name: GitHubActions-BlueGreen-${{ needs.get-current-environment.outputs.inactive-env }}
+          role-session-name: GitHubActions-BlueGreen-Backend
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Deploy to ${{ needs.get-current-environment.outputs.inactive-env }} environment
+      - name: Create GitHub deployment
+        id: deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: '${{ github.event.inputs.environment }}',
+              description: 'Blue-green deploy: ${{ needs.detect-environment.outputs.inactive-env }}',
+              required_contexts: [],
+              auto_merge: false,
+            });
+            core.setOutput('deployment-id', deployment.data.id);
+
+      - name: Deploy backend to ${{ needs.detect-environment.outputs.inactive-env }}
         id: deploy
         run: |
-          ENVIRONMENT="${{ needs.get-current-environment.outputs.inactive-env }}"
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.event.inputs.image-tag }}"
-          
-          echo "🚀 Deploying to $ENVIRONMENT environment..."
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/backend:${{ github.event.inputs.image-tag }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          SERVICE="scoopdope-backend-${INACTIVE}"
+
+          echo "🚀 Deploying backend to ${INACTIVE} environment..."
           echo "Image: $IMAGE"
-          
-          # Example ECS deployment
+          echo "Cluster: $CLUSTER"
+          echo "Service: $SERVICE"
+
           aws ecs update-service \
-            --cluster "${{ github.event.inputs.environment }}-cluster" \
-            --service "scoopdope-backend-$ENVIRONMENT" \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
             --force-new-deployment \
-            --region ${{ secrets.AWS_REGION }} || {
-            echo "❌ Deployment failed"
+            --region "${{ secrets.AWS_REGION }}" || {
+            echo "❌ Backend deployment failed"
+            echo "status=failed" >> "$GITHUB_OUTPUT"
             exit 1
           }
-          
-          echo "deployment_status=in_progress" >> $GITHUB_OUTPUT
 
-      - name: Wait for deployment to stabilize
+          echo "status=deployed" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for backend deployment to stabilize
         run: |
-          ENVIRONMENT="${{ needs.get-current-environment.outputs.inactive-env }}"
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          SERVICE="scoopdope-backend-${INACTIVE}"
           MAX_ATTEMPTS=60
           ATTEMPT=0
-          
-          echo "⏳ Waiting for $ENVIRONMENT deployment to stabilize..."
-          
+
+          echo "⏳ Waiting for backend deployment to stabilize..."
+
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
-            TASK_COUNT=$(aws ecs describe-services \
-              --cluster "${{ github.event.inputs.environment }}-cluster" \
-              --services "scoopdope-backend-$ENVIRONMENT" \
-              --region ${{ secrets.AWS_REGION }} \
-              --query 'services[0].runningCount' \
-              --output text)
-            
-            DESIRED_COUNT=$(aws ecs describe-services \
-              --cluster "${{ github.event.inputs.environment }}-cluster" \
-              --services "scoopdope-backend-$ENVIRONMENT" \
-              --region ${{ secrets.AWS_REGION }} \
-              --query 'services[0].desiredCount' \
-              --output text)
-            
-            if [ "$TASK_COUNT" = "$DESIRED_COUNT" ] && [ "$TASK_COUNT" -gt 0 ]; then
-              echo "✅ Deployment stabilized: $TASK_COUNT/$DESIRED_COUNT tasks running"
-              break
+            DEPLOYMENT=$(aws ecs describe-services \
+              --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --region "${{ secrets.AWS_REGION }}" \
+              --query 'services[0].deployments[?status==`PRIMARY`]' \
+              --output json)
+
+            RUNNING=$(echo "$DEPLOYMENT" | jq -r '.[0].runningCount // 0')
+            DESIRED=$(echo "$DEPLOYMENT" | jq -r '.[0].desiredCount // 0')
+            PENDING=$(echo "$DEPLOYMENT" | jq -r '.[0].pendingCount // 0')
+            ROLLOUT=$(echo "$DEPLOYMENT" | jq -r '.[0].rolloutState // "unknown"')
+
+            if [ "$RUNNING" -ge "$DESIRED" ] && [ "$PENDING" -eq 0 ] && [ "$DESIRED" -gt 0 ]; then
+              echo "✅ Backend deployment stabilized: $RUNNING/$DESIRED tasks running"
+              exit 0
             fi
-            
-            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: $TASK_COUNT/$DESIRED_COUNT tasks running"
+
+            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: $RUNNING/$DESIRED running, $PENDING pending ($ROLLOUT)"
             sleep 10
             ATTEMPT=$((ATTEMPT+1))
           done
-          
-          if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-            echo "❌ Deployment failed to stabilize"
+
+          echo "❌ Backend deployment failed to stabilize after $MAX_ATTEMPTS attempts"
+          exit 1
+
+      - name: Update deployment status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const state = '${{ job.status }}' === 'success' ? 'success' : 'failure';
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.deployment-id }},
+              state: state,
+              description: state === 'success' ? 'Backend deployed to inactive' : 'Backend deployment failed',
+              environment_url: 'https://api.scoopdope.example.com',
+            });
+
+  deploy-frontend:
+    name: Deploy Frontend to Inactive Environment
+    runs-on: ubuntu-latest
+    needs: [validate, detect-environment, run-migrations]
+    if: success() && needs.validate.outputs.has-frontend-image == 'true'
+
+    permissions:
+      id-token: write
+      contents: read
+
+    environment:
+      name: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-BlueGreen-Frontend
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy frontend to ${{ needs.detect-environment.outputs.inactive-env }}
+        run: |
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.event.inputs.image-tag }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          SERVICE="scoopdope-frontend-${INACTIVE}"
+
+          echo "🚀 Deploying frontend to ${INACTIVE} environment..."
+          echo "Image: $IMAGE"
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "$SERVICE" \
+            --force-new-deployment \
+            --region "${{ secrets.AWS_REGION }}" || {
+            echo "❌ Frontend deployment failed"
             exit 1
-          fi
+          }
+
+      - name: Wait for frontend deployment to stabilize
+        run: |
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          SERVICE="scoopdope-frontend-${INACTIVE}"
+          MAX_ATTEMPTS=30
+          ATTEMPT=0
+
+          echo "⏳ Waiting for frontend deployment to stabilize..."
+
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            DEPLOYMENT=$(aws ecs describe-services \
+              --cluster "$CLUSTER" \
+              --services "$SERVICE" \
+              --region "${{ secrets.AWS_REGION }}" \
+              --query 'services[0].deployments[?status==`PRIMARY`]' \
+              --output json)
+
+            RUNNING=$(echo "$DEPLOYMENT" | jq -r '.[0].runningCount // 0')
+            DESIRED=$(echo "$DEPLOYMENT" | jq -r '.[0].desiredCount // 0')
+            PENDING=$(echo "$DEPLOYMENT" | jq -r '.[0].pendingCount // 0')
+
+            if [ "$RUNNING" -ge "$DESIRED" ] && [ "$PENDING" -eq 0 ] && [ "$DESIRED" -gt 0 ]; then
+              echo "✅ Frontend deployment stabilized: $RUNNING/$DESIRED tasks running"
+              exit 0
+            fi
+
+            echo "Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS: $RUNNING/$DESIRED running, $PENDING pending"
+            sleep 10
+            ATTEMPT=$((ATTEMPT+1))
+          done
+
+          echo "❌ Frontend deployment failed to stabilize"
+          exit 1
 
   health-check:
     name: Health Check on Inactive Environment
     runs-on: ubuntu-latest
-    needs: [deploy-to-inactive, get-current-environment]
+    needs: [deploy-backend, deploy-frontend, detect-environment]
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Perform health checks
         id: health
         run: |
-          ENVIRONMENT="${{ needs.get-current-environment.outputs.inactive-env }}"
-          HEALTH_URL="https://$ENVIRONMENT-api.scoopdope.example.com/health"
-          
-          echo "🔍 Running health checks on $ENVIRONMENT environment..."
-          
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          BASE_URL="https://${INACTIVE}-api.scoopdope.example.com"
+
+          echo "🔍 Running health checks on ${INACTIVE} environment..."
+
           for i in {1..30}; do
-            if curl -sf "$HEALTH_URL"; then
-              echo "✅ Health check passed"
-              echo "health_status=healthy" >> $GITHUB_OUTPUT
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$BASE_URL/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Health check passed (HTTP 200)"
+              echo "health_status=healthy" >> "$GITHUB_OUTPUT"
               exit 0
             fi
-            echo "Attempt $i/30 failed, retrying in 5s..."
+            echo "Attempt $i/30 — HTTP $HTTP_CODE, retrying in 5s..."
             sleep 5
           done
-          
-          echo "❌ Health check failed"
+
+          echo "❌ Health check failed after 30 attempts"
           exit 1
 
       - name: Run smoke tests
         run: |
-          ENVIRONMENT="${{ needs.get-current-environment.outputs.inactive-env }}"
-          API_URL="https://$ENVIRONMENT-api.scoopdope.example.com"
-          
-          echo "🧪 Running smoke tests..."
-          
-          # Test key endpoints
-          curl -sf "$API_URL/v1/courses" > /dev/null || exit 1
-          curl -sf "$API_URL/v1/health" > /dev/null || exit 1
-          
-          echo "✅ Smoke tests passed"
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          BASE_URL="https://${INACTIVE}-api.scoopdope.example.com"
+
+          echo "🧪 Running comprehensive smoke tests..."
+
+          declare -A ENDPOINTS
+          ENDPOINTS["Health"]="$BASE_URL/health"
+          ENDPOINTS["Courses"]="$BASE_URL/v1/courses"
+          ENDPOINTS["Swagger"]="$BASE_URL/api/docs"
+          ENDPOINTS["Metrics"]="$BASE_URL/metrics"
+
+          FAILED=0
+          for NAME in "${!ENDPOINTS[@]}"; do
+            URL="${ENDPOINTS[$NAME]}"
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" "$URL" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ]; then
+              echo "  ✅ $NAME ($HTTP_CODE)"
+            else
+              echo "  ❌ $NAME (HTTP $HTTP_CODE)"
+              FAILED=$((FAILED+1))
+            fi
+          done
+
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED smoke test(s) failed"
+            exit 1
+          fi
+          echo "✅ All smoke tests passed"
 
   switch-traffic:
     name: Switch Traffic to New Environment
     runs-on: ubuntu-latest
-    needs: [health-check, get-current-environment]
+    needs: [health-check, detect-environment]
+    if: success()
+
+    permissions:
+      id-token: write
+      contents: read
+
+    environment:
+      name: ${{ github.event.inputs.environment }}
+
+    outputs:
+      switch-status: ${{ steps.switch.outputs.status }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-BlueGreen-Switch
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Switch traffic to ${{ needs.detect-environment.outputs.inactive-env }}
+        id: switch
+        run: |
+          NEW_ACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          OLD_ACTIVE="${{ needs.detect-environment.outputs.active-env }}"
+          HOSTED_ZONE="${{ secrets.ROUTE53_ZONE_ID }}"
+          REGION="${{ secrets.AWS_REGION }}"
+
+          echo "🔄 Switching traffic from ${OLD_ACTIVE} to ${NEW_ACTIVE}..."
+
+          aws route53 change-resource-record-sets \
+            --hosted-zone-id "$HOSTED_ZONE" \
+            --change-batch '{
+              "Changes": [
+                {
+                  "Action": "UPSERT",
+                  "ResourceRecordSet": {
+                    "Name": "api.scoopdope.example.com",
+                    "Type": "CNAME",
+                    "TTL": 60,
+                    "ResourceRecords": [{"Value": "'"${NEW_ACTIVE}"'-api.scoopdope.example.com"}]
+                  }
+                }
+              ]
+            }' \
+            --region "$REGION"
+
+          echo "✅ Traffic switched to ${NEW_ACTIVE}"
+          echo "status=switched" >> "$GITHUB_OUTPUT"
+
+      - name: Verify traffic switch
+        run: |
+          echo "⏳ Verifying traffic switch (allow 60s TTL to propagate)..."
+          sleep 10
+
+          for i in {1..12}; do
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              "https://api.scoopdope.example.com/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Traffic switch verified (HTTP $HTTP_CODE)"
+              exit 0
+            fi
+            echo "Attempt $i/12 — HTTP $HTTP_CODE, retrying in 5s..."
+            sleep 5
+          done
+
+          echo "❌ Traffic switch verification failed"
+          exit 1
+
+  monitor-new-environment:
+    name: Monitor New Active Environment
+    runs-on: ubuntu-latest
+    needs: [switch-traffic, detect-environment]
+    if: success()
+
+    steps:
+      - name: Monitor for errors post-switch
+        run: |
+          NEW_ACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          MONITOR_SECONDS=300
+          INTERVAL=10
+          CHECKS=$((MONITOR_SECONDS / INTERVAL))
+          THRESHOLD_ERROR_RATE=5
+          HIGH_ERROR_COUNT=0
+          MAX_HIGH_ERRORS=3
+
+          echo "📊 Monitoring ${NEW_ACTIVE} environment for $MONITOR_SECONDS seconds..."
+          echo "Threshold: >${THRESHOLD_ERROR_RATE}% error rate"
+
+          for i in $(seq 1 $CHECKS); do
+            ERROR_RATE=$(curl -sf "https://api.scoopdope.example.com/metrics" \
+              2>/dev/null | grep -oP 'error_rate \K[0-9.]+' || echo "0")
+
+            LATENCY_P95=$(curl -sf "https://api.scoopdope.example.com/metrics" \
+              2>/dev/null | grep -oP 'latency_p95_ms \K[0-9.]+' || echo "0")
+
+            HEALTH_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              "https://api.scoopdope.example.com/health" 2>/dev/null || echo "000")
+
+            echo "  Check $i/$CHECKS — Error: ${ERROR_RATE}% | p95: ${LATENCY_P95}ms | Health: ${HEALTH_CODE}"
+
+            if (( $(echo "$ERROR_RATE > $THRESHOLD_ERROR_RATE" | bc -l) )); then
+              HIGH_ERROR_COUNT=$((HIGH_ERROR_COUNT+1))
+              echo "  ⚠️ High error rate detected: ${ERROR_RATE}%"
+            fi
+
+            if [ "$HEALTH_CODE" != "200" ]; then
+              echo "  ❌ Health check returned HTTP $HEALTH_CODE"
+              HIGH_ERROR_COUNT=$((HIGH_ERROR_COUNT+1))
+            fi
+
+            sleep $INTERVAL
+          done
+
+          if [ $HIGH_ERROR_COUNT -ge $MAX_HIGH_ERRORS ]; then
+            echo "❌ Monitoring failed — sustained high error rate"
+            exit 1
+          fi
+
+          echo "✅ Monitoring complete — environment is healthy"
+
+  cleanup-old-environment:
+    name: Clean Up Old Environment
+    runs-on: ubuntu-latest
+    needs: [monitor-new-environment, detect-environment]
     if: success()
 
     permissions:
@@ -233,91 +599,86 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          role-session-name: GitHubActions-BlueGreen-Switch
+          role-session-name: GitHubActions-BlueGreen-Cleanup
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Switch traffic to ${{ needs.get-current-environment.outputs.inactive-env }}
-        id: switch
+      - name: Scale down old active environment
         run: |
-          NEW_ACTIVE="${{ needs.get-current-environment.outputs.inactive-env }}"
-          OLD_ACTIVE="${{ needs.get-current-environment.outputs.active-env }}"
-          
-          echo "🔄 Switching traffic from $OLD_ACTIVE to $NEW_ACTIVE..."
-          
-          # Update load balancer target group
-          aws elbv2 modify-target-group \
-            --target-group-arn "${{ secrets.ALB_TARGET_GROUP_ARN }}" \
-            --health-check-path "/health" \
-            --region ${{ secrets.AWS_REGION }} || true
-          
-          # Update Route53 or ALB to point to new environment
-          aws route53 change-resource-record-sets \
-            --hosted-zone-id "${{ secrets.ROUTE53_ZONE_ID }}" \
-            --change-batch "{
-              \"Changes\": [{
-                \"Action\": \"UPSERT\",
-                \"ResourceRecordSet\": {
-                  \"Name\": \"api.scoopdope.example.com\",
-                  \"Type\": \"CNAME\",
-                  \"TTL\": 60,
-                  \"ResourceRecords\": [{\"Value\": \"$NEW_ACTIVE-api.scoopdope.example.com\"}]
-                }
-              }]
-            }" \
-            --region ${{ secrets.AWS_REGION }} || true
-          
-          echo "✅ Traffic switched to $NEW_ACTIVE"
-          echo "switch_status=success" >> $GITHUB_OUTPUT
+          OLD_ACTIVE="${{ needs.detect-environment.outputs.active-env }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          REGION="${{ secrets.AWS_REGION }}"
 
-      - name: Verify traffic switch
-        run: |
-          echo "⏳ Verifying traffic switch..."
-          sleep 10
-          
-          for i in {1..10}; do
-            if curl -sf https://api.scoopdope.example.com/health; then
-              echo "✅ Traffic switch verified"
-              exit 0
-            fi
-            echo "Attempt $i/10 failed, retrying..."
-            sleep 5
-          done
-          
-          echo "❌ Traffic switch verification failed"
-          exit 1
+          echo "🧹 Scaling down old environment: ${OLD_ACTIVE}"
 
-  monitor-new-environment:
-    name: Monitor New Active Environment
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "scoopdope-backend-${OLD_ACTIVE}" \
+            --desired-count 0 \
+            --region "$REGION"
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "scoopdope-frontend-${OLD_ACTIVE}" \
+            --desired-count 0 \
+            --region "$REGION"
+
+          echo "✅ Old environment (${OLD_ACTIVE}) scaled down to 0"
+
+  notify-success:
+    name: Notify Deployment Success
     runs-on: ubuntu-latest
-    needs: [switch-traffic, get-current-environment]
+    needs: [switch-traffic, monitor-new-environment, cleanup-old-environment]
     if: success()
-
     steps:
-      - name: Monitor for errors
+      - name: Create deployment success issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '✅ Blue-Green Deployment Successful - ${{ github.event.inputs.environment }}',
+              body: [
+                '## Deployment Summary',
+                '',
+                '- **Environment**: ${{ github.event.inputs.environment }}',
+                '- **Image tag**: ${{ github.event.inputs.image-tag }}',
+                '- **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                '- **Run ID**: ${{ github.run_id }}',
+              ].join('\n'),
+              labels: ['deployment', 'success'],
+            });
+          env:
+            GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  notify-failure:
+    name: Notify Deployment Failure
+    runs-on: ubuntu-latest
+    needs: [rollback, switch-traffic, health-check, deploy-backend]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
+    steps:
+      - name: Deployment failed notification
         run: |
-          NEW_ACTIVE="${{ needs.get-current-environment.outputs.inactive-env }}"
-          
-          echo "📊 Monitoring $NEW_ACTIVE environment for 5 minutes..."
-          
-          for i in {1..30}; do
-            # Check error rates, latency, etc.
-            ERROR_RATE=$(curl -s https://api.scoopdope.example.com/metrics | grep -oP 'error_rate \K[0-9.]+' || echo "0")
-            
-            if (( $(echo "$ERROR_RATE > 5" | bc -l) )); then
-              echo "⚠️ High error rate detected: $ERROR_RATE%"
-              echo "Consider rolling back"
+          echo "❌ Blue-green deployment to ${{ github.event.inputs.environment }} failed."
+          echo "Failed jobs:"
+          for job in deploy-backend health-check switch-traffic rollback; do
+            case "$job" in
+              deploy-backend) result="${{ needs.deploy-backend.result }}" ;;
+              health-check) result="${{ needs.health-check.result }}" ;;
+              switch-traffic) result="${{ needs.switch-traffic.result }}" ;;
+              rollback) result="${{ needs.rollback.result }}" ;;
+            esac
+            if [ "$result" = "failure" ]; then
+              echo "  - ❌ $job"
             fi
-            
-            sleep 10
           done
-          
-          echo "✅ Monitoring complete"
+          echo "Image tag: ${{ github.event.inputs.image-tag }}"
 
   rollback:
     name: Rollback on Failure
     runs-on: ubuntu-latest
-    needs: [switch-traffic, get-current-environment]
-    if: failure()
+    needs: [switch-traffic, detect-environment, health-check, deploy-backend]
+    if: ${{ always() && contains(needs.*.result, 'failure') }}
 
     permissions:
       id-token: write
@@ -334,29 +695,76 @@ jobs:
           role-session-name: GitHubActions-BlueGreen-Rollback
           aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Rollback to ${{ needs.get-current-environment.outputs.active-env }}
+      - name: Determine rollback target
+        id: rollback-target
         run: |
-          PREVIOUS_ACTIVE="${{ needs.get-current-environment.outputs.active-env }}"
-          
-          echo "🔄 Rolling back to $PREVIOUS_ACTIVE environment..."
-          
-          # Switch traffic back to previous environment
+          PREVIOUS_ACTIVE="${{ needs.detect-environment.outputs.active-env }}"
+          echo "🔄 Rolling back to previous active environment: ${PREVIOUS_ACTIVE}"
+
+          echo "target=${PREVIOUS_ACTIVE}" >> "$GITHUB_OUTPUT"
+
+      - name: Switch traffic back to previous environment
+        run: |
+          TARGET="${{ steps.rollback-target.outputs.target }}"
+          HOSTED_ZONE="${{ secrets.ROUTE53_ZONE_ID }}"
+          REGION="${{ secrets.AWS_REGION }}"
+
+          echo "🔄 Reverting Route53 to ${TARGET}..."
+
           aws route53 change-resource-record-sets \
-            --hosted-zone-id "${{ secrets.ROUTE53_ZONE_ID }}" \
-            --change-batch "{
-              \"Changes\": [{
-                \"Action\": \"UPSERT\",
-                \"ResourceRecordSet\": {
-                  \"Name\": \"api.scoopdope.example.com\",
-                  \"Type\": \"CNAME\",
-                  \"TTL\": 60,
-                  \"ResourceRecords\": [{\"Value\": \"$PREVIOUS_ACTIVE-api.scoopdope.example.com\"}]
+            --hosted-zone-id "$HOSTED_ZONE" \
+            --change-batch '{
+              "Changes": [
+                {
+                  "Action": "UPSERT",
+                  "ResourceRecordSet": {
+                    "Name": "api.scoopdope.example.com",
+                    "Type": "CNAME",
+                    "TTL": 60,
+                    "ResourceRecords": [{"Value": "'"${TARGET}"'-api.scoopdope.example.com"}]
+                  }
                 }
-              }]
-            }" \
-            --region ${{ secrets.AWS_REGION }} || true
-          
-          echo "✅ Rolled back to $PREVIOUS_ACTIVE"
+              ]
+            }' \
+            --region "$REGION"
+
+          echo "✅ Traffic reverted to ${TARGET}"
+
+      - name: Scale down the failed environment
+        run: |
+          INACTIVE="${{ needs.detect-environment.outputs.inactive-env }}"
+          CLUSTER="${{ github.event.inputs.environment }}-cluster"
+          REGION="${{ secrets.AWS_REGION }}"
+
+          echo "🧹 Scaling down failed environment: ${INACTIVE}"
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "scoopdope-backend-${INACTIVE}" \
+            --desired-count 0 \
+            --region "$REGION" || true
+
+          aws ecs update-service \
+            --cluster "$CLUSTER" \
+            --service "scoopdope-frontend-${INACTIVE}" \
+            --desired-count 0 \
+            --region "$REGION" || true
+
+          echo "✅ Failed environment scaled down"
+
+      - name: Verify rollback health
+        run: |
+          for i in {1..12}; do
+            HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+              "https://api.scoopdope.example.com/health" 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" = "200" ]; then
+              echo "✅ Rollback verified — production health restored"
+              exit 0
+            fi
+            echo "Attempt $i/12 — HTTP $HTTP_CODE, retrying in 5s..."
+            sleep 5
+          done
+          echo "⚠️ Rollback completed but health check not yet passing"
 
       - name: Create incident issue
         uses: actions/github-script@v7
@@ -365,7 +773,20 @@ jobs:
             await github.rest.issues.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `🚨 Blue-Green Deployment Rollback - ${{ github.event.inputs.environment }}`,
-              body: `Deployment failed and was automatically rolled back.\n\n- Environment: ${{ github.event.inputs.environment }}\n- Image tag: ${{ github.event.inputs.image-tag }}\n- Run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ['incident', 'deployment', 'rollback']
+              title: '🚨 Blue-Green Deployment Rollback - ${{ github.event.inputs.environment }}',
+              body: [
+                '## Deployment Rollback',
+                '',
+                'A blue-green deployment failed and was automatically rolled back.',
+                '',
+                '- **Environment**: ${{ github.event.inputs.environment }}',
+                '- **Image tag**: ${{ github.event.inputs.image-tag }}',
+                '- **New environment**: ${{ needs.detect-environment.outputs.inactive-env }}',
+                '- **Rolled back to**: ${{ needs.detect-environment.outputs.active-env }}',
+                '- **Run**: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}',
+                '',
+                '### Failed Jobs',
+                '- Check the workflow run for detailed failure information',
+              ].join('\n'),
+              labels: ['incident', 'deployment', 'rollback'],
             });

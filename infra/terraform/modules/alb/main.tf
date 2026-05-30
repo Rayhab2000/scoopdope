@@ -30,6 +30,11 @@ resource "aws_security_group" "alb" {
   }
 }
 
+locals {
+  has_cert = var.certificate_arn != ""
+  has_logs = var.log_bucket_id != ""
+}
+
 resource "aws_lb" "main" {
   name               = "${var.environment}-scoopdope-alb"
   internal           = false
@@ -38,6 +43,14 @@ resource "aws_lb" "main" {
   subnets            = var.public_subnet_ids
 
   enable_deletion_protection = var.environment == "prod"
+
+  dynamic "access_logs" {
+    for_each = local.has_logs ? [1] : []
+    content {
+      bucket  = var.log_bucket_id
+      enabled = true
+    }
+  }
 
   tags = {
     Name        = "${var.environment}-scoopdope-alb"
@@ -51,7 +64,55 @@ resource "aws_lb_listener" "http" {
   protocol          = "HTTP"
 
   default_action {
+    type = local.has_cert ? "redirect" : "forward"
+
+    dynamic "redirect" {
+      for_each = local.has_cert ? [1] : []
+      content {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+
+    dynamic "forward" {
+      for_each = local.has_cert ? [] : [1]
+      content {
+        target_group_arn = var.frontend_target_group_arn
+      }
+    }
+  }
+}
+
+resource "aws_lb_listener" "https" {
+  count = local.has_cert ? 1 : 0
+
+  load_balancer_arn = aws_lb.main.arn
+  port              = "443"
+  protocol          = "HTTPS"
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
+  certificate_arn   = var.certificate_arn
+
+  default_action {
     type             = "forward"
     target_group_arn = var.frontend_target_group_arn
+  }
+}
+
+resource "aws_lb_listener_rule" "backend_api" {
+  count = local.has_cert ? 1 : 0
+
+  listener_arn = aws_lb_listener.https[0].arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = var.backend_target_group_arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/api/*"]
+    }
   }
 }

@@ -5,6 +5,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Enrollment } from './enrollment.entity';
 import { PrerequisitesService } from '../courses/prerequisites.service';
 import { CourseVersioningService } from '../courses/course-versioning.service';
+import { MetricsService } from '../metrics/metrics.service';
 
 @Injectable()
 export class EnrollmentsService {
@@ -14,6 +15,7 @@ export class EnrollmentsService {
     private eventEmitter: EventEmitter2,
     private prereqService: PrerequisitesService,
     private versioningService: CourseVersioningService,
+    private metrics: MetricsService,
   ) {}
 
   async enroll(userId: string, courseId: string, adminOverride = false): Promise<Enrollment> {
@@ -40,6 +42,8 @@ export class EnrollmentsService {
       courseId,
       enrolledAt: enrollment.enrolledAt,
     });
+
+    this.metrics.incrementEnrollment(courseId, 'all');
 
     return enrollment;
   }

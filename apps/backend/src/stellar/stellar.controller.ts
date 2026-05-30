@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Param, Query, Body, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { StellarService } from './stellar.service';
@@ -27,6 +27,16 @@ export class StellarController {
   @ApiResponse({ status: 200, description: 'Returns account balances' })
   getBalance(@Param('publicKey') publicKey: string) {
     return this.stellarService.getAccountBalance(publicKey);
+  }
+
+  @Get('transactions/:publicKey')
+  @ApiOperation({ summary: 'Get recent Stellar transactions for an account' })
+  @ApiResponse({ status: 200, description: 'Returns recent transactions' })
+  getTransactions(
+    @Param('publicKey') publicKey: string,
+    @Query('limit') limit?: string
+  ) {
+    return this.stellarService.getTransactions(publicKey, limit ? parseInt(limit, 10) : 10);
   }
 
   @Post('fund-testnet')

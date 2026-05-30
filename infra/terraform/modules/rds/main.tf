@@ -39,23 +39,29 @@ resource "aws_db_instance" "main" {
   engine_version = "16.1"
   instance_class = var.db_instance_class
 
-  allocated_storage     = 20
-  max_allocated_storage = 100
+  allocated_storage     = var.allocated_storage
+  max_allocated_storage = var.max_allocated_storage
   storage_encrypted     = true
 
   db_name  = var.db_name
   username = var.db_username
-  password = var.db_password
+
+  manage_master_user_password = true
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  backup_retention_period = 7
+  backup_retention_period = var.backup_retention_period
   backup_window           = "03:00-04:00"
   maintenance_window      = "mon:04:00-mon:05:00"
 
-  skip_final_snapshot       = var.environment != "prod"
+  multi_az               = var.multi_az
+  deletion_protection    = var.deletion_protection
+  skip_final_snapshot    = var.environment != "prod"
   final_snapshot_identifier = "${var.environment}-scoopdope-db-final-snapshot"
+
+  performance_insights_enabled          = var.performance_insights_enabled
+  performance_insights_retention_period = var.performance_insights_enabled ? 7 : 0
 
   tags = {
     Name        = "${var.environment}-scoopdope-db"
