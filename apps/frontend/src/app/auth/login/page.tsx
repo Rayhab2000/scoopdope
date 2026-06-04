@@ -171,6 +171,16 @@ export default function LoginPage() {
           </Button>
         </form>
 
+        <Link
+          href="/auth/stellar"
+          className="flex items-center justify-center gap-2 w-full rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+        >
+          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+          </svg>
+          Sign in with Stellar Wallet
+        </Link>
+
         <p className="text-sm text-center text-gray-600 dark:text-gray-400">
           Don&apos;t have an account?{' '}
           <Link href="/auth/register" className="text-blue-600 hover:underline dark:text-blue-400">
