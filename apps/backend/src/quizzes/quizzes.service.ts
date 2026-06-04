@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Quiz } from './quiz.entity';
@@ -42,6 +42,15 @@ export class QuizzesService {
   }
 
   async submitAttempt(quizId: string, userId: string, answers: any[]) {
+    // Prevent re-submission
+    const existingAttempt = await this.attemptRepo.findOne({
+      where: { quizId, userId },
+    });
+
+    if (existingAttempt) {
+      throw new BadRequestException('Quiz already submitted');
+    }
+
     // Record activity for streak
     await this.streaksService.recordActivity(userId);
 
@@ -50,11 +59,16 @@ export class QuizzesService {
       relations: ['questions', 'questions.answers'],
     });
 
+    if (!quiz) {
+      throw new BadRequestException('Quiz not found');
+    }
+
     const attempt = this.attemptRepo.create({ quizId, userId });
     const savedAttempt = await this.attemptRepo.save(attempt);
 
     let totalScore = 0;
     let totalPoints = 0;
+    const gradedAnswers = [];
 
     for (const answer of answers) {
       const question = quiz.questions.find((q) => q.id === answer.questionId);
@@ -70,12 +84,22 @@ export class QuizzesService {
 
       if (question.type !== QuestionType.ESSAY) {
         const correctAnswer = question.answers.find((a) => a.isCorrect);
-        if (correctAnswer && correctAnswer.text === answer.answer) {
+        const isCorrect = correctAnswer && correctAnswer.text === answer.answer;
+        
+        if (isCorrect) {
           attemptAnswer.points = question.points;
           totalScore += question.points;
         } else {
           attemptAnswer.points = 0;
         }
+
+        gradedAnswers.push({
+          questionId: question.id,
+          userAnswer: answer.answer,
+          correctAnswer: correctAnswer?.text,
+          isCorrect,
+          points: attemptAnswer.points,
+        });
       }
 
       await this.attemptAnswerRepo.save(attemptAnswer);
@@ -84,7 +108,12 @@ export class QuizzesService {
     savedAttempt.score = totalPoints > 0 ? (totalScore / totalPoints) * 100 : 0;
     savedAttempt.isGraded = quiz.questions.every((q) => q.type !== QuestionType.ESSAY);
 
-    return this.attemptRepo.save(savedAttempt);
+    const result = await this.attemptRepo.save(savedAttempt);
+
+    return {
+      ...result,
+      gradedAnswers,
+    };
   }
 
   async gradeEssay(attemptId: string, questionId: string, points: number, feedback: string) {
@@ -113,12 +142,38 @@ export class QuizzesService {
   }
 
   async getAttempts(quizId: string, userId?: string) {
-    const query = this.attemptRepo.createQueryBuilder('attempt').where('attempt.quizId = :quizId', { quizId });
+    const query = this.attemptRepo
+      .createQueryBuilder('attempt')
+      .leftJoinAndSelect('attempt.answers', 'answers')
+      .leftJoinAndSelect('attempt.quiz', 'quiz')
+      .leftJoinAndSelect('quiz.questions', 'questions')
+      .leftJoinAndSelect('questions.answers', 'questionAnswers')
+      .where('attempt.quizId = :quizId', { quizId });
 
     if (userId) {
       query.andWhere('attempt.userId = :userId', { userId });
     }
 
-    return query.orderBy('attempt.submittedAt', 'DESC').getMany();
+    const attempts = await query.orderBy('attempt.submittedAt', 'DESC').getMany();
+
+    // Map to include gradedAnswers format for consistency
+    return attempts.map((attempt) => {
+      const gradedAnswers = attempt.answers.map((ua) => {
+        const question = attempt.quiz.questions.find((q) => q.id === ua.questionId);
+        const correctAnswer = question?.answers.find((a) => a.isCorrect);
+        return {
+          questionId: ua.questionId,
+          userAnswer: ua.answer,
+          correctAnswer: correctAnswer?.text,
+          isCorrect: correctAnswer && correctAnswer.text === ua.answer,
+          points: ua.points,
+        };
+      });
+
+      return {
+        ...attempt,
+        gradedAnswers,
+      };
+    });
   }
 }

@@ -1,12 +1,13 @@
-import { Body, Controller, Get, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Redirect, Req, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
+import { ConfigService } from '@nestjs/config';
 import { RateLimit } from '../rate-limit/rate-limit.decorator';
 import { AUTH_RATE_LIMIT } from '../rate-limit/rate-limit.constants';
 import { AuthService } from './auth.service';
 import { StellarAuthService } from './stellar-auth.service';
-import { GoogleAuthGuard } from './google-auth.guard'; // eslint-disable-line @typescript-eslint/no-unused-vars
-import { GoogleProfile } from './google.strategy'; // eslint-disable-line @typescript-eslint/no-unused-vars
+import { GoogleAuthGuard } from './google-auth.guard';
+import { GoogleProfile } from './google.strategy';
 import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { Roles } from './roles.decorator';
@@ -45,8 +46,30 @@ class RefreshDto {
 export class AuthController {
   constructor(
     private authService: AuthService,
-    private stellarAuthService: StellarAuthService
+    private stellarAuthService: StellarAuthService,
+    private configService: ConfigService,
   ) {}
+
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Initiate Google OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google OAuth consent screen' })
+  googleLogin() {
+    // Guard redirects to Google
+  }
+
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  @Redirect()
+  @ApiOperation({ summary: 'Google OAuth callback — issues JWT and redirects to frontend' })
+  @ApiResponse({ status: 302, description: 'Redirects to frontend with tokens' })
+  async googleCallback(@Req() req: { user: GoogleProfile }) {
+    const tokens = await this.authService.googleOAuthLogin(req.user);
+    const frontendUrl = this.configService.get<string>('frontend.url');
+    return {
+      url: `${frontendUrl}/auth/callback?access_token=${tokens.access_token}&refresh_token=${tokens.refresh_token}`,
+    };
+  }
 
   @Get('stellar')
   @ApiOperation({ summary: 'SEP-0010: get challenge transaction' })

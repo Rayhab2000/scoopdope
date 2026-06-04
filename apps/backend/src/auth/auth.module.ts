@@ -18,6 +18,7 @@ import { EncryptionService } from '../common/encryption.service';
 import { ApiKeyStrategy } from './api-key.strategy';
 import { ApiKeyAuthGuard } from './api-key-auth.guard';
 import { AuditModule } from '../audit/audit.module';
+import { GoogleStrategy } from './google.strategy';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AuditModule } from '../audit/audit.module';
     EncryptionService,
     ApiKeyStrategy,
     ApiKeyAuthGuard,
+    GoogleStrategy,
   ],
   controllers: [AuthController],
   exports: [JwtAuthGuard, RolesGuard, ApiKeyAuthGuard, EncryptionService],

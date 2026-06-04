@@ -367,6 +367,23 @@ export class AuthService {
     }
   }
 
+  async googleOAuthLogin(profile: { id: string; email: string; displayName: string; picture: string }) {
+    let user = await this.usersService.findByEmail(profile.email);
+
+    if (!user) {
+      const referralCode = crypto.randomBytes(6).toString('hex');
+      user = await this.usersService.create({
+        email: profile.email,
+        passwordHash: '',
+        isVerified: true,
+        referralCode,
+        avatar: profile.picture,
+      });
+    }
+
+    return this.issueTokenPair(user.id, user.email, user.role);
+  }
+
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   private async issueTokenPair(userId: string, email: string, role: string = 'student') {

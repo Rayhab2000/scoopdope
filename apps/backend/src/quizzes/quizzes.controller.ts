@@ -51,7 +51,7 @@ export class QuizzesController {
   }
 
   @Get(':quizId/attempts')
-  async getAttempts(@Param('quizId') quizId: string) {
-    return this.quizzesService.getAttempts(quizId);
+  async getAttempts(@Param('quizId') quizId: string, @CurrentUser() user: any) {
+    return this.quizzesService.getAttempts(quizId, user.id);
   }
 }
