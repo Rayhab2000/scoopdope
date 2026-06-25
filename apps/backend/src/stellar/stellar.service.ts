@@ -1,4 +1,4 @@
-import { Injectable, Logger, Inject, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, Inject, ServiceUnavailableException, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
@@ -18,7 +18,7 @@ const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 1000;
 
 @Injectable()
-export class StellarService {
+export class StellarService implements OnApplicationShutdown {
   private readonly logger = new Logger(StellarService.name);
   private server: Horizon.Server;
   private sorobanServer: SorobanRpc.Server;
@@ -30,6 +30,9 @@ export class StellarService {
   private contractId: string;
   private enrollmentContractId: string;
   private secretKey: string;
+  private pendingTransactionCount = 0;
+  private isShuttingDown = false;
+  private readonly SHUTDOWN_TIMEOUT_MS = 10000;
 
   constructor(
     private configService: ConfigService,
@@ -82,11 +85,13 @@ export class StellarService {
       throw new Error('ENROLLMENT_CONTRACT_ID is not configured');
     }
 
-    return this.retryWithBackoff(() =>
-      this.invokeContract(this.enrollmentContractId, 'record_enrollment', [
-        new Address(studentPublicKey).toScVal(),
-        nativeToScVal(courseId, { type: 'string' }),
-      ]),
+    return this.trackTransaction(() =>
+      this.retryWithBackoff(() =>
+        this.invokeContract(this.enrollmentContractId, 'record_enrollment', [
+          new Address(studentPublicKey).toScVal(),
+          nativeToScVal(courseId, { type: 'string' }),
+        ]),
+      )
     );
   }
 
@@ -135,28 +140,30 @@ export class StellarService {
     metadata?: { courseName: string; grade: string; skills: string[] }
   ): Promise<string> {
     this.ensureSecretKeyConfigured();
-    try {
-      await this.retryWithBackoff(() => this.recordProgressOnChain(recipientPublicKey, courseId));
-      this.logger.log(`Progress recorded on Soroban for ${courseId}`);
-    } catch (error: any) {
-      this.logger.error(
-        `Failed to record progress on Soroban: ${error.message}, falling back to Horizon`
-      );
-      await this.issueCredentialFallback(recipientPublicKey, courseId);
-    }
-
-    if (metadata && this.credentialMetadataContractId) {
+    return this.trackTransaction(async () => {
       try {
-        await this.retryWithBackoff(() =>
-          this.storeCredentialMetadata(recipientPublicKey, metadata)
-        );
-        this.logger.log(`Metadata stored on-chain for ${metadata.courseName}`);
+        await this.retryWithBackoff(() => this.recordProgressOnChain(recipientPublicKey, courseId));
+        this.logger.log(`Progress recorded on Soroban for ${courseId}`);
       } catch (error: any) {
-        this.logger.error(`Failed to store metadata on-chain: ${error.message}`);
+        this.logger.error(
+          `Failed to record progress on Soroban: ${error.message}, falling back to Horizon`
+        );
+        await this.issueCredentialFallback(recipientPublicKey, courseId);
       }
-    }
 
-    return this.mintCredentialViaHorizon(recipientPublicKey, courseId);
+      if (metadata && this.credentialMetadataContractId) {
+        try {
+          await this.retryWithBackoff(() =>
+            this.storeCredentialMetadata(recipientPublicKey, metadata)
+          );
+          this.logger.log(`Metadata stored on-chain for ${metadata.courseName}`);
+        } catch (error: any) {
+          this.logger.error(`Failed to store metadata on-chain: ${error.message}`);
+        }
+      }
+
+      return this.mintCredentialViaHorizon(recipientPublicKey, courseId);
+    });
   }
 
   async storeCredentialMetadata(
@@ -182,12 +189,14 @@ export class StellarService {
     _progressPct: number
   ): Promise<string> {
     this.ensureSecretKeyConfigured();
-    return this.retryWithBackoff(() =>
-      this.invokeContract(this.analyticsContractId ?? this.contractId, 'record_progress', [
-        new Address(studentPublicKey).toScVal(),
-        nativeToScVal(courseId, { type: 'symbol' }),
-        nativeToScVal(_progressPct, { type: 'i32' }),
-      ])
+    return this.trackTransaction(() =>
+      this.retryWithBackoff(() =>
+        this.invokeContract(this.analyticsContractId ?? this.contractId, 'record_progress', [
+          new Address(studentPublicKey).toScVal(),
+          nativeToScVal(courseId, { type: 'symbol' }),
+          nativeToScVal(_progressPct, { type: 'i32' }),
+        ])
+      )
     );
   }
 
@@ -238,11 +247,13 @@ export class StellarService {
     if (!this.tokenContractId) {
       throw new Error('TOKEN_CONTRACT_ID not configured');
     }
-    return this.retryWithBackoff(() =>
-      this.invokeContract(this.tokenContractId, 'mint_reward', [
-        new Address(recipientPublicKey).toScVal(),
-        nativeToScVal(amount, { type: 'i128' }),
-      ])
+    return this.trackTransaction(() =>
+      this.retryWithBackoff(() =>
+        this.invokeContract(this.tokenContractId, 'mint_reward', [
+          new Address(recipientPublicKey).toScVal(),
+          nativeToScVal(amount, { type: 'i128' }),
+        ])
+      )
     );
   }
 
@@ -255,6 +266,50 @@ export class StellarService {
           'Signing operations (issuing credentials, minting tokens, recording progress) require the secret key. ' +
           'Configure STELLAR_SECRET_KEY environment variable to enable these features.'
       );
+    }
+  }
+
+  async onApplicationShutdown(signal?: string) {
+    this.logger.log(`Shutting down StellarService (signal: ${signal})`);
+    this.isShuttingDown = true;
+
+    if (this.pendingTransactionCount > 0) {
+      this.logger.warn(
+        `⏳ Waiting for ${this.pendingTransactionCount} pending Stellar transaction(s) to complete...`
+      );
+
+      const startTime = Date.now();
+      while (this.pendingTransactionCount > 0 && Date.now() - startTime < this.SHUTDOWN_TIMEOUT_MS) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+
+      if (this.pendingTransactionCount > 0) {
+        this.logger.warn(
+          `⚠️  Shutdown timeout: ${this.pendingTransactionCount} Stellar transaction(s) still pending after ${this.SHUTDOWN_TIMEOUT_MS}ms. ` +
+            'These may result in user charges without database records. Consider increasing deployment grace period.'
+        );
+      } else {
+        this.logger.log('✅ All pending Stellar transactions completed successfully');
+      }
+    }
+  }
+
+  private incrementPendingTransactions(): void {
+    this.pendingTransactionCount++;
+  }
+
+  private decrementPendingTransactions(): void {
+    if (this.pendingTransactionCount > 0) {
+      this.pendingTransactionCount--;
+    }
+  }
+
+  private async trackTransaction<T>(fn: () => Promise<T>): Promise<T> {
+    this.incrementPendingTransactions();
+    try {
+      return await fn();
+    } finally {
+      this.decrementPendingTransactions();
     }
   }
 
