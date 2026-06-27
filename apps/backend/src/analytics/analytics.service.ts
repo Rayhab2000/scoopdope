@@ -32,7 +32,9 @@ export interface PlatformAnalytics {
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
-  private readonly CACHE_TTL = 3600;
+  private readonly CACHE_TTL = 300;
+
+  private readonly CACHE_PREFIX = 'analytics:';
 
   constructor(
     @InjectRepository(CourseAnalytics) private analyticsRepo: Repository<CourseAnalytics>,
@@ -44,7 +46,7 @@ export class AnalyticsService {
   ) {}
 
   async getAnalytics(courseId: string): Promise<CourseAnalytics> {
-    const cacheKey = `analytics:${courseId}`;
+    const cacheKey = `${this.CACHE_PREFIX}${courseId}`;
     const cached = await this.cache.get<CourseAnalytics>(cacheKey);
     if (cached) return cached;
 
@@ -104,12 +106,12 @@ export class AnalyticsService {
     });
 
     const saved = await this.analyticsRepo.save(record);
-    await this.cache.del(`analytics:${courseId}`);
+    await this.cache.set(`${this.CACHE_PREFIX}${courseId}`, saved, this.CACHE_TTL);
     return saved;
   }
 
   async getPlatformAnalytics(): Promise<PlatformAnalytics> {
-    const cacheKey = 'analytics:platform';
+    const cacheKey = `${this.CACHE_PREFIX}platform`;
     const cached = await this.cache.get<PlatformAnalytics>(cacheKey);
     if (cached) return cached;
 

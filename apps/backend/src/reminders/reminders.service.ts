@@ -23,39 +23,52 @@ export class RemindersService {
     const inactivityDays = this.configService.get<number>('REMINDER_INACTIVITY_DAYS', 7);
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - inactivityDays);
+    const batchSize = 100;
+    let offset = 0;
+    let hasMore = true;
 
-    const inactiveEnrollments = await this.enrollmentsRepository
-      .createQueryBuilder('e')
-      .leftJoinAndSelect('e.user', 'user')
-      .leftJoinAndSelect('e.course', 'course')
-      .where('e.completedAt IS NULL')
-      .andWhere('e.enrolledAt < :cutoffDate', { cutoffDate })
-      .getMany();
+    while (hasMore) {
+      const inactiveEnrollments = await this.enrollmentsRepository
+        .createQueryBuilder('e')
+        .leftJoinAndSelect('e.user', 'user')
+        .leftJoinAndSelect('e.course', 'course')
+        .where('e.completedAt IS NULL')
+        .andWhere('e.enrolledAt < :cutoffDate', { cutoffDate })
+        .take(batchSize)
+        .skip(offset)
+        .getMany();
 
-    for (const enrollment of inactiveEnrollments) {
-      const reminder = await this.remindersRepository.findOne({
-        where: { userId: enrollment.userId, courseId: enrollment.courseId },
-      });
+      if (inactiveEnrollments.length === 0) {
+        hasMore = false;
+        break;
+      }
 
-      if (!reminder || !reminder.isActive) continue;
+      for (const enrollment of inactiveEnrollments) {
+        const reminder = await this.remindersRepository.findOne({
+          where: { userId: enrollment.userId, courseId: enrollment.courseId },
+        });
 
-      const lastReminder = new Date(reminder.lastReminderSentAt);
-      const reminderFrequencyHours = this.configService.get<number>('REMINDER_FREQUENCY_HOURS', 168);
-      const nextReminderTime = new Date(lastReminder.getTime() + reminderFrequencyHours * 60 * 60 * 1000);
+        if (!reminder || !reminder.isActive) continue;
 
-      if (new Date() < nextReminderTime) continue;
+        const lastReminder = new Date(reminder.lastReminderSentAt);
+        const reminderFrequencyHours = this.configService.get<number>('REMINDER_FREQUENCY_HOURS', 168);
+        const nextReminderTime = new Date(lastReminder.getTime() + reminderFrequencyHours * 60 * 60 * 1000);
 
-      await this.mailService.sendReminderEmail(
-        enrollment.user.email,
-        enrollment.user.username,
-        enrollment.course.title,
-      );
+        if (new Date() < nextReminderTime) continue;
 
-      reminder.lastReminderSentAt = new Date();
-      await this.remindersRepository.save(reminder);
-      this.logger.log(`Reminder sent to ${enrollment.user.email} for course ${enrollment.course.title}`);
+        await this.mailService.sendReminderEmail(
+          enrollment.user.email,
+          enrollment.user.username,
+          enrollment.course.title,
+        );
+
+        reminder.lastReminderSentAt = new Date();
+        await this.remindersRepository.save(reminder);
+        this.logger.log(`Reminder sent to ${enrollment.user.email} for course ${enrollment.course.title}`);
+      }
+
+      offset += batchSize;
     }
-  }
 
   async createReminder(userId: string, courseId: string): Promise<Reminder> {
     const reminder = this.remindersRepository.create({
