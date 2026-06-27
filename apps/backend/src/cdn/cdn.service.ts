@@ -1,7 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { CdnAsset, AssetType, ContentType } from './cdn-asset.entity';
 import * as crypto from 'crypto';
 
@@ -23,6 +25,7 @@ export class CdnService {
   constructor(
     private configService: ConfigService,
     @InjectRepository(CdnAsset) private assetRepo: Repository<CdnAsset>,
+    @Inject(CACHE_MANAGER) private cache: Cache,
   ) {
     this.cdnDomain = this.configService.get('CDN_DOMAIN', '');
     this.cdnAccessKey = this.configService.get('CDN_ACCESS_KEY', '');
@@ -55,6 +58,10 @@ export class CdnService {
   }
 
   async generateSignedUrl(assetId: string, expirationMinutes = 60): Promise<string> {
+    const cacheKey = `signed-url:${assetId}`;
+    const cached = await this.cache.get<string>(cacheKey);
+    if (cached) return cached;
+
     const asset = await this.assetRepo.findOne({ where: { id: assetId } });
     if (!asset) throw new NotFoundException('Asset not found');
 
@@ -72,7 +79,10 @@ export class CdnService {
     const encoded = (s: string) =>
       s.replace(/\+/g, '-').replace(/=/g, '_').replace(/\//g, '~');
 
-    return `${asset.cdnUrl}?Expires=${expiresAt}&Signature=${encoded(signature)}&Key-Pair-Id=${this.cdnAccessKey}`;
+    const signedUrl = `${asset.cdnUrl}?Expires=${expiresAt}&Signature=${encoded(signature)}&Key-Pair-Id=${this.cdnAccessKey}`;
+
+    await this.cache.set(cacheKey, signedUrl, (expirationMinutes - 5) * 60);
+    return signedUrl;
   }
 
   async markAsTranscoded(assetId: string, bitrates: string[], thumbnailUrl?: string) {
