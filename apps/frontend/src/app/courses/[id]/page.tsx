@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCompareStore } from '@/store/compare.store';
 import api from '@/lib/api';
 import { toast } from '@/lib/toast';
-import { PlayCircle, Lock, Calendar } from 'lucide-react';
+import { PlayCircle, Lock, Calendar, CheckCircle, Circle, AlertTriangle } from 'lucide-react';
 
 interface CourseDetailPageProps {
   params: { id: string };
@@ -28,13 +28,32 @@ interface CourseData {
   isPublished: boolean;
 }
 
+interface Prerequisite {
+  courseId: string;
+  title: string;
+  completed: boolean;
+  enrolled: boolean;
+}
+
+interface PrerequisiteStatus {
+  allSatisfied: boolean;
+  prerequisites: Prerequisite[];
+}
+
 export default function CourseDetailPage({ params }: CourseDetailPageProps) {
   const [tab, setTab] = useState<'overview' | 'curriculum' | 'reviews' | 'qa' | 'announcements' | 'assignments' | 'forum'>('overview');
   const [reviewsKey, setReviewsKey] = useState(0);
+  const [course, setCourse] = useState<CourseData | null>(null);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrollError, setEnrollError] = useState<string | null>(null);
   const [modules, setModules] = useState<any[]>([]);
   const [enrolling, setEnrolling] = useState(false);
+  const [prereqStatus, setPrereqStatus] = useState<PrerequisiteStatus | null>(null);
+  const [prereqLoading, setPrereqLoading] = useState(true);
   const { user } = useAuth();
   const { clear: clearCompare } = useCompareStore();
+
+  const hasUnmetPrereqs = prereqStatus !== null && !prereqStatus.allSatisfied && prereqStatus.prerequisites.length > 0;
 
   const courseId = params.id;
   const isInstructor = user?.role === 'instructor' || user?.role === 'admin';
@@ -90,9 +109,22 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
       }
     };
 
+    async function fetchPrerequisites() {
+      if (!user) { setPrereqLoading(false); return; }
+      try {
+        const { data } = await api.get(`/v1/courses/${courseId}/prerequisites/status`);
+        setPrereqStatus(data.data ?? data);
+      } catch {
+        setPrereqStatus(null);
+      } finally {
+        setPrereqLoading(false);
+      }
+    }
+
     fetchCourse();
     fetchEnrollmentStatus();
     fetchModules();
+    fetchPrerequisites();
   }, [courseId, user]);
 
   async function handleEnroll() {
@@ -133,19 +165,53 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
                 onEnrolled={() => setIsEnrolled(true)}
               />
             ) : (
-              <div className="space-y-1">
-                <button
-                  onClick={handleEnroll}
-                  disabled={enrolling}
-                  className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                  aria-label="Enroll in this course"
-                >
-                  {enrolling ? 'Enrolling…' : 'Enroll Now'}
-                </button>
+              <div className="space-y-2">
+                <div className="relative group">
+                  <button
+                    onClick={handleEnroll}
+                    disabled={enrolling || hasUnmetPrereqs}
+                    className="w-full rounded-lg bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    aria-label="Enroll in this course"
+                  >
+                    {enrolling ? 'Enrolling…' : 'Enroll Now'}
+                  </button>
+                  {hasUnmetPrereqs && (
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 text-center">
+                      Complete all prerequisites before enrolling
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700" />
+                    </div>
+                  )}
+                </div>
                 {enrollError && (
                   <p className="text-xs text-red-600 dark:text-red-400" role="alert">
                     {enrollError}
                   </p>
+                )}
+                {hasUnmetPrereqs && !prereqLoading && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-800 p-3 space-y-2">
+                    <div className="flex items-center gap-1.5">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="text-xs font-semibold text-amber-800 dark:text-amber-300">Prerequisites required</span>
+                    </div>
+                    <ul className="space-y-1">
+                      {prereqStatus!.prerequisites.map((p) => (
+                        <li key={p.courseId} className="flex items-center gap-1.5 text-xs">
+                          {p.completed ? (
+                            <CheckCircle className="w-3.5 h-3.5 text-green-600 dark:text-green-400 shrink-0" />
+                          ) : (
+                            <Circle className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                          )}
+                          {p.completed ? (
+                            <span className="line-through text-gray-400 truncate">{p.title}</span>
+                          ) : (
+                            <Link href={`/courses/${p.courseId}`} className="text-blue-600 hover:underline truncate">
+                              {p.title} →
+                            </Link>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
@@ -191,13 +257,21 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
           <p className="text-gray-600">Course content and details would appear here.</p>
           {!isInstructor && <PrerequisitesPanel courseId={courseId} />}
           {!isInstructor && (
-            <button
-              onClick={handleEnroll}
-              disabled={enrolling}
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2.5 font-medium text-sm transition-colors"
-            >
-              {enrolling ? 'Enrolling…' : 'Enroll Now'}
-            </button>
+            <div className="relative group inline-block">
+              <button
+                onClick={handleEnroll}
+                disabled={enrolling || hasUnmetPrereqs}
+                className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-2.5 font-medium text-sm transition-colors"
+              >
+                {enrolling ? 'Enrolling…' : 'Enroll Now'}
+              </button>
+              {hasUnmetPrereqs && (
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 rounded-lg bg-gray-900 dark:bg-gray-700 text-white text-xs px-3 py-2 shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 text-center">
+                  Complete all prerequisites before enrolling
+                  <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700" />
+                </div>
+              )}
+            </div>
           )}
           <ReviewForm courseId={courseId} onSuccess={() => { setTab('reviews'); setReviewsKey((k) => k + 1); }} />
         </div>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -9,6 +10,20 @@ import api from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+
+function CheckIcon({ active }: { active: boolean }) {
+  return (
+    <svg
+      className={`w-3.5 h-3.5 ${active ? 'text-green-500' : 'text-gray-400 dark:text-gray-500'}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth="3"
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
 
 const schema = z
   .object({
@@ -26,21 +41,61 @@ type FormData = z.infer<typeof schema>;
 export default function RegisterPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const [isLoading, setIsLoading] = useState(false);
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    watch,
+    formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
+  const passwordValue = watch('password', '');
+
+  const rules = {
+    length: passwordValue.length >= 8,
+    uppercase: /[A-Z]/.test(passwordValue),
+    number: /[0-9]/.test(passwordValue),
+    symbol: /[^A-Za-z0-9]/.test(passwordValue),
+  };
+  const rulesPassed = Object.values(rules).filter(Boolean).length;
+  
+  const widthClasses = ['w-0', 'w-1/4', 'w-1/2', 'w-3/4', 'w-full'];
+  const progressWidth = widthClasses[rulesPassed];
+  
+  let strength = 'Weak';
+  let strengthColor = 'bg-red-500';
+  let strengthTextColor = 'text-red-600 dark:text-red-400';
+  
+  if (rulesPassed === 4) {
+    strength = 'Strong';
+    strengthColor = 'bg-green-500';
+    strengthTextColor = 'text-green-600 dark:text-green-400';
+  } else if (rulesPassed >= 2) {
+    strength = 'Fair';
+    strengthColor = 'bg-yellow-500';
+    strengthTextColor = 'text-yellow-600 dark:text-yellow-400';
+  }
+
+  if (passwordValue.length === 0) {
+    strength = '';
+  }
+
   const onSubmit = async (data: FormData) => {
-    const res = await api.post<{ access_token: string; user: any }>('/auth/register', {
-      email: data.email,
-      password: data.password,
-    });
-    localStorage.setItem('access_token', res.data.access_token);
-    login(res.data.access_token, res.data.user);
-    router.push('/dashboard');
+    setIsLoading(true);
+    try {
+      const res = await api.post<{ access_token: string; user: any }>('/auth/register', {
+        email: data.email,
+        password: data.password,
+      });
+      localStorage.setItem('access_token', res.data.access_token);
+      login(res.data.access_token, res.data.user);
+      setIsLoading(false);
+      router.push('/dashboard');
+    } catch (error) {
+      setIsLoading(false);
+      // Let any global interceptors handle error toast if needed
+    }
   };
 
   return (
@@ -63,6 +118,35 @@ export default function RegisterPage() {
             error={errors.password?.message}
             {...register('password')}
           />
+
+          <div className="flex flex-col gap-2 -mt-2 mb-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                Password strength
+              </span>
+              <span className={`text-xs font-bold ${strengthTextColor}`}>
+                {strength}
+              </span>
+            </div>
+            <div className="h-1.5 w-full bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+              <div className={`h-full ${progressWidth} ${strengthColor} transition-all duration-300`} />
+            </div>
+            <div className="grid grid-cols-2 gap-1 mt-1 text-xs text-gray-600 dark:text-gray-400">
+              <div className={`flex items-center gap-1.5 ${rules.length ? 'text-green-600 dark:text-green-400' : ''}`}>
+                <CheckIcon active={rules.length} /> 8+ characters
+              </div>
+              <div className={`flex items-center gap-1.5 ${rules.uppercase ? 'text-green-600 dark:text-green-400' : ''}`}>
+                <CheckIcon active={rules.uppercase} /> Uppercase letter
+              </div>
+              <div className={`flex items-center gap-1.5 ${rules.number ? 'text-green-600 dark:text-green-400' : ''}`}>
+                <CheckIcon active={rules.number} /> Number
+              </div>
+              <div className={`flex items-center gap-1.5 ${rules.symbol ? 'text-green-600 dark:text-green-400' : ''}`}>
+                <CheckIcon active={rules.symbol} /> Special symbol
+              </div>
+            </div>
+          </div>
+
           <Input
             label="Confirm Password"
             type="password"
@@ -71,8 +155,8 @@ export default function RegisterPage() {
             {...register('confirmPassword')}
           />
 
-          <Button type="submit" disabled={isSubmitting} className="w-full mt-2">
-            {isSubmitting ? (
+          <Button type="submit" disabled={isLoading} className="w-full mt-2">
+            {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                   <circle

@@ -27,6 +27,7 @@ type FormData = z.infer<typeof schema>;
 export default function LoginPage() {
   const router = useRouter();
   const login = useAuthStore((s) => s.login);
+  const [isLoading, setIsLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [awaitingMfa, setAwaitingMfa] = useState(false);
   const [pendingCredentials, setPendingCredentials] = useState<{ email: string; password: string } | null>(null);
@@ -35,10 +36,11 @@ export default function LoginPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors },
   } = useForm<FormData>({ resolver: zodResolver(schema) });
 
   const onSubmit = async (data: FormData) => {
+    setIsLoading(true);
     setApiError(null);
 
     try {
@@ -51,6 +53,7 @@ export default function LoginPage() {
         if (res.data.mfa_required) {
           setAwaitingMfa(true);
           setPendingCredentials({ email: data.email, password: data.password });
+          setIsLoading(false);
           return;
         }
 
@@ -61,6 +64,7 @@ export default function LoginPage() {
         localStorage.setItem('access_token', res.data.access_token);
         const profileResponse = await api.get('/users/me');
         login(res.data.access_token, profileResponse.data);
+        setIsLoading(false);
         router.push('/dashboard');
         return;
       }
@@ -82,10 +86,12 @@ export default function LoginPage() {
       localStorage.setItem('access_token', res.data.access_token);
       const profileResponse = await api.get('/users/me');
       login(res.data.access_token, profileResponse.data);
+      setIsLoading(false);
       router.push('/dashboard');
     } catch (err: any) {
       const message = err?.response?.data?.message ?? err?.message;
       setApiError(typeof message === 'string' ? message : 'Invalid credentials');
+      setIsLoading(false);
     }
   };
 
@@ -122,7 +128,7 @@ export default function LoginPage() {
                 onChange={(e) => setMfaToken(e.target.value.trim())}
                 placeholder="123456"
                 className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-gray-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
-                disabled={isSubmitting}
+                disabled={isLoading}
               />
               <button
                 type="button"
@@ -149,8 +155,8 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          <Button type="submit" disabled={isSubmitting} className="w-full mt-2">
-            {isSubmitting ? (
+          <Button type="submit" disabled={isLoading} className="w-full mt-2">
+            {isLoading ? (
               <span className="flex items-center justify-center gap-2">
                 <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
                   <circle

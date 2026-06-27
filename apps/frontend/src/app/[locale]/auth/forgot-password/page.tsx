@@ -8,19 +8,19 @@ import api from '@/lib/api';
 export default function ForgotPasswordPage() {
   const t = useTranslations('auth');
   const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setIsLoading(true);
     try {
       await api.post('/auth/forgot-password', { email });
       setSuccess(true);
     } catch (error) {
       // Error handled by interceptor
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -65,10 +65,20 @@ export default function ForgotPasswordPage() {
           </div>
           <button
             type="submit"
-            disabled={loading}
+            disabled={isLoading}
             className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-700 hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {loading ? t('sending') : t('sendResetLink')}
+            {isLoading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                {t('sending')}
+              </span>
+            ) : (
+              t('sendResetLink')
+            )}
           </button>
         </form>
         <div className="mt-4 text-center">
