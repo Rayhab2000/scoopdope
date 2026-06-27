@@ -25,10 +25,29 @@ services:
     networks:
       - scoopdope
 
+  elasticsearch:
+    image: elasticsearch:8.12.0
+    restart: unless-stopped
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    ports:
+      - '9200:9200'
+    networks:
+      - scoopdope
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:9200']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
   backend:
     build:
-      context: ./apps/backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: apps/backend/Dockerfile
     restart: unless-stopped
     ports:
       - '3000:3000'
@@ -42,6 +61,7 @@ services:
       DATABASE_NAME: scoopdope
       REDIS_HOST: redis
       REDIS_PORT: 6379
+      ELASTICSEARCH_NODE: http://elasticsearch:9200
     volumes:
       - /app/node_modules  # Prevent host node_modules override
     depends_on:
@@ -49,6 +69,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_started
+      elasticsearch:
+        condition: service_healthy
     networks:
       - scoopdope
     logging:
@@ -61,6 +83,8 @@ volumes:
   postgres_data:
     driver: local
   redis_data:
+    driver: local
+  elasticsearch_data:
     driver: local
 
 networks:
