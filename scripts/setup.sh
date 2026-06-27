@@ -12,6 +12,16 @@ require() {
   fi
 }
 
+require_version() {
+  local label=$1
+  local current=$2
+  local required=$3
+  if [ "$(printf '%s\n' "$required" "$current" | sort -V | head -n1)" != "$required" ]; then
+    echo "❌  $label $required+ required (found $current)"
+    exit 1
+  fi
+}
+
 # ── Prerequisite checks ───────────────────────────────────────────────────────
 echo ""
 echo "🔍 Checking prerequisites..."
@@ -19,17 +29,19 @@ echo "🔍 Checking prerequisites..."
 require node  "Install from https://nodejs.org (v18+)"
 require npm   "Bundled with Node.js"
 require rustc "Run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+require stellar "Install from https://github.com/stellar/stellar-cli/releases/tag/v21.5.0"
 
-NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
-if [ "$NODE_MAJOR" -lt 18 ]; then
-  echo "❌  Node.js v18+ required (found $(node -v))"
-  exit 1
-fi
+NODE_VERSION=$(node -e "process.stdout.write(process.versions.node)")
+require_version "Node.js" "$NODE_VERSION" "18.0.0"
 
-if ! command -v stellar &>/dev/null; then
-  echo "⚠️   Stellar CLI not found. Contract deployment will be unavailable."
-  echo "    Install: https://github.com/stellar/stellar-cli/releases/tag/v21.5.0"
-fi
+NPM_VERSION=$(npm -v)
+require_version "npm" "$NPM_VERSION" "9.0.0"
+
+RUST_VERSION=$(rustc --version | grep -oP '\d+\.\d+\.\d+')
+require_version "Rust" "$RUST_VERSION" "1.75.0"
+
+STELLAR_VERSION=$(stellar version 2>/dev/null | grep -oP '\d+\.\d+\.\d+' | head -1)
+require_version "Stellar CLI" "$STELLAR_VERSION" "21.5.0"
 
 echo "   Node.js $(node -v) ✓"
 echo "   npm $(npm -v) ✓"

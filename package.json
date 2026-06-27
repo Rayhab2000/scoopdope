@@ -16,6 +16,7 @@
     "test:load": "./scripts/load-test.sh",
     "test:mutation": "stryker run",
     "test:mutation:report": "stryker run --reporters html",
+    "type-check": "npm run type-check --workspace=apps/backend && npm run typecheck --workspace=packages/types",
     "prepare": "husky install"
   },
   "engines": {
