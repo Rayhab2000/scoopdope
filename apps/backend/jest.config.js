@@ -11,6 +11,9 @@ module.exports = {
       },
     }],
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@scure|@otplib|@noble|otplib)/)',
+  ],
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
   coverageReporters: ['text', 'lcov', 'html'],

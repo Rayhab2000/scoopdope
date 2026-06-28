@@ -6,6 +6,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { UsersModule } from '../users/users.module';
 import { MailModule } from '../mail/mail.module';
 import { AuthService } from './auth.service';
+import { TokenService } from './token.service';
+import { MfaService } from './mfa.service';
+import { OAuthService } from './oauth.service';
 import { StellarAuthService } from './stellar-auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
@@ -38,6 +41,9 @@ import { GoogleStrategy } from './google.strategy';
   ],
   providers: [
     AuthService,
+    TokenService,
+    MfaService,
+    OAuthService,
     StellarAuthService,
     JwtStrategy,
     JwtAuthGuard,
