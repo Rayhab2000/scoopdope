@@ -9,15 +9,59 @@ import { PeerReviewForm } from './PeerReviewForm';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
 
+interface RubricCriterion {
+  id: string;
+  title: string;
+  description: string;
+  maxPoints: number;
+}
+
+interface Assignment {
+  id: string;
+  title: string;
+  dueDate: string;
+  rubric: RubricCriterion[];
+}
+
+interface ReviewScore {
+  criterionId: string;
+  score: number;
+  feedback: string;
+}
+
+interface PeerReview {
+  id: string;
+  scores: ReviewScore[];
+  overallFeedback: string;
+  isSubmitted: boolean;
+}
+
+interface AssignmentSubmission {
+  id: string;
+  fileUrl: string;
+  submittedAt: string;
+  peerReviews: PeerReview[];
+  finalGrade: number | null;
+  instructorGrade: number | null;
+  instructorFeedback: string | null;
+  assignment: Assignment;
+}
+
+interface PendingPeerReview {
+  id: string;
+  isSubmitted: boolean;
+  submission: AssignmentSubmission;
+}
+
 interface AssignmentsTabProps {
   courseId: string;
 }
 
 export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ courseId }) => {
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [selectedAssignment, setSelectedAssignment] = useState<any>(null);
-  const [submission, setSubmission] = useState<any>(null);
-  const [myReviews, setMyReviews] = useState<any[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [selectedAssignment, setSelectedAssignment] = useState<Assignment | null>(null);
+  const [submission, setSubmission] = useState<AssignmentSubmission | null>(null);
+  const [myReviews, setMyReviews] = useState<PendingPeerReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<'list' | 'detail' | 'review'>('list');
 
@@ -40,7 +84,7 @@ export const AssignmentsTab: React.FC<AssignmentsTabProps> = ({ courseId }) => {
     }
   };
 
-  const handleSelectAssignment = async (assignment: any) => {
+  const handleSelectAssignment = async (assignment: Assignment) => {
     setSelectedAssignment(assignment);
     const sub = await assignmentsApi.getMySubmission(assignment.id);
     setSubmission(sub);

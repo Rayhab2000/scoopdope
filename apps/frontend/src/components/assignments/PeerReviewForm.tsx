@@ -7,9 +7,22 @@ import { Input } from '@/components/ui/Input';
 import { assignmentsApi } from '@/lib/assignmentsApi';
 import { toast } from '@/lib/toast';
 
+interface RubricCriterion {
+  id: string;
+  title: string;
+  description: string;
+  maxPoints: number;
+}
+
+interface ReviewScore {
+  criterionId: string;
+  score: number;
+  feedback: string;
+}
+
 interface PeerReviewFormProps {
   submissionId: string;
-  rubric: any[];
+  rubric: RubricCriterion[];
   onSuccess: () => void;
 }
 
@@ -18,15 +31,15 @@ export const PeerReviewForm: React.FC<PeerReviewFormProps> = ({
   rubric,
   onSuccess,
 }) => {
-  const [scores, setScores] = useState<any[]>(
+  const [scores, setScores] = useState<ReviewScore[]>(
     rubric.map((c) => ({ criterionId: c.id, score: 0, feedback: '' }))
   );
   const [overallFeedback, setOverallFeedback] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleScoreChange = (index: number, field: string, value: any) => {
+  const handleScoreChange = (index: number, field: keyof ReviewScore, value: string | number) => {
     const newScores = [...scores];
-    newScores[index][field] = value;
+    newScores[index] = { ...newScores[index], [field]: value };
     setScores(newScores);
   };
 

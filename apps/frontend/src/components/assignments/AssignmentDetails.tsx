@@ -5,6 +5,13 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 
+interface RubricCriterion {
+  id: string;
+  title: string;
+  description: string;
+  maxPoints: number;
+}
+
 interface AssignmentDetailsProps {
   assignment: {
     id: string;
@@ -12,7 +19,7 @@ interface AssignmentDetailsProps {
     description: string;
     dueDate: string;
     maxPoints: number;
-    rubric: any[];
+    rubric: RubricCriterion[];
   };
 }
 
@@ -38,7 +45,7 @@ export const AssignmentDetails: React.FC<AssignmentDetailsProps> = ({ assignment
       <div className="mb-6">
         <h3 className="text-lg font-semibold mb-2">Grading Rubric</h3>
         <div className="space-y-3">
-          {assignment.rubric.map((criterion: any) => (
+          {assignment.rubric.map((criterion: RubricCriterion) => (
             <div key={criterion.id} className="p-3 border rounded-lg">
               <div className="flex justify-between font-medium">
                 <span>{criterion.title}</span>

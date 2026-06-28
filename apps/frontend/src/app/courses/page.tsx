@@ -170,7 +170,7 @@ function BackToTopButton() {
 }
 
 export default function CoursesPage() {
-  const [bundles, setBundles] = useState<any[]>([]);
+  const [bundles, setBundles] = useState<Bundle[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { fetchBookmarks } = useBookmarksStore();

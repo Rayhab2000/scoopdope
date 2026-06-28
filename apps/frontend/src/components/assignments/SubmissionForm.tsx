@@ -7,10 +7,15 @@ import { Card } from '@/components/ui/Card';
 import { assignmentsApi } from '@/lib/assignmentsApi';
 import { toast } from '@/lib/toast';
 
+interface ExistingSubmission {
+  fileUrl: string;
+  submittedAt: string;
+}
+
 interface SubmissionFormProps {
   assignmentId: string;
   onSuccess: () => void;
-  existingSubmission?: any;
+  existingSubmission?: ExistingSubmission;
 }
 
 export const SubmissionForm: React.FC<SubmissionFormProps> = ({

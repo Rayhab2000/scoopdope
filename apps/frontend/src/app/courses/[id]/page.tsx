@@ -28,7 +28,19 @@ interface CourseData {
   isPublished: boolean;
 }
 
-interface Prerequisite {
+interface Lesson {
+  id: string;
+  title: string;
+  durationMinutes: number;
+}
+
+interface CourseModule {
+  id: string;
+  title: string;
+  isLocked?: boolean;
+  releaseDate?: string;
+  lessons?: Lesson[];
+}
   courseId: string;
   title: string;
   completed: boolean;
@@ -46,7 +58,7 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
   const [course, setCourse] = useState<CourseData | null>(null);
   const [isEnrolled, setIsEnrolled] = useState(false);
   const [enrollError, setEnrollError] = useState<string | null>(null);
-  const [modules, setModules] = useState<any[]>([]);
+  const [modules, setModules] = useState<CourseModule[]>([]);
   const [enrolling, setEnrolling] = useState(false);
   const [prereqStatus, setPrereqStatus] = useState<PrerequisiteStatus | null>(null);
   const [prereqLoading, setPrereqLoading] = useState(true);
@@ -64,8 +76,9 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
       await api.post('/v1/enrollments', { courseId });
       clearCompare();
       toast.success('Enrolled successfully!');
-    } catch (err: any) {
-      toast.error(err.response?.data?.message ?? 'Enrollment failed');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Enrollment failed';
+      toast.error((err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? msg);
     } finally {
       setEnrolling(false);
     }
@@ -86,7 +99,7 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
       try {
         const { data } = await api.get(`/users/${user.id}/enrollments`);
         const enrolled = Array.isArray(data)
-          ? data.some((e: any) => e.courseId === courseId)
+          ? data.some((e: { courseId: string }) => e.courseId === courseId)
           : false;
         setIsEnrolled(enrolled);
       } catch {
@@ -98,7 +111,7 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
       try {
         const { data } = await api.get(`/courses/${courseId}/modules`);
         const modulesWithLessons = await Promise.all(
-          data.map(async (mod: any) => {
+          data.map(async (mod: CourseModule) => {
             const lessonsRes = await api.get(`/modules/${mod.id}/lessons`);
             return { ...mod, lessons: lessonsRes.data };
           })
@@ -133,9 +146,9 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
     try {
       await api.post(`/courses/${courseId}/enroll`);
       setIsEnrolled(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       const msg: string =
-        err?.response?.data?.message ?? 'Enrollment failed. Please try again.';
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Enrollment failed. Please try again.';
       setEnrollError(typeof msg === 'string' ? msg : JSON.stringify(msg));
     } finally {
       setEnrolling(false);
@@ -312,7 +325,7 @@ export default function CourseDetailPage({ params }: CourseDetailPageProps) {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {mod.lessons?.map((lesson: any) => (
+                  {mod.lessons?.map((lesson: Lesson) => (
                     <Link
                       key={lesson.id}
                       href={`/courses/${courseId}/lesson/${lesson.id}`}
