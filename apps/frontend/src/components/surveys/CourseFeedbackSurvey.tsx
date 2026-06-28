@@ -94,15 +94,31 @@ export function CourseFeedbackSurvey({ survey, onSubmitted }: Props) {
             </div>
           )}
 
-          {q.type === 'text' && (
-            <textarea
-              rows={3}
-              value={(answers[q.id] as string) ?? ''}
-              onChange={(e) => setAnswer(q.id, e.target.value)}
-              required={q.required}
-              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          )}
+          {q.type === 'text' && (() => {
+            const MAX = 500;
+            const len = ((answers[q.id] as string) ?? '').length;
+            const pct = len / MAX;
+            const counterClass = pct >= 1
+              ? 'text-red-500'
+              : pct >= 0.8
+              ? 'text-amber-500'
+              : 'text-gray-400 dark:text-gray-500';
+            return (
+              <div>
+                <textarea
+                  rows={3}
+                  maxLength={MAX}
+                  value={(answers[q.id] as string) ?? ''}
+                  onChange={(e) => setAnswer(q.id, e.target.value)}
+                  required={q.required}
+                  className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <p className={`text-xs text-right mt-0.5 ${counterClass}`} aria-live="polite">
+                  {len} / {MAX}
+                </p>
+              </div>
+            );
+          })()}
 
           {q.type === 'mcq' && q.options && (
             <div className="space-y-1">
