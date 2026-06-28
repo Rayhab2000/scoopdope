@@ -10,6 +10,7 @@
  * ```
  */
 
+export * from './assignment.types';
 export * from './common.types';
 export * from './course.types';
 export * from './enrollment.types';

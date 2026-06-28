@@ -1,5 +1,11 @@
 import api from './api';
 
+interface ReviewScore {
+  criterionId: string;
+  score: number;
+  feedback: string;
+}
+
 export const assignmentsApi = {
   getAssignmentsByCourse: (courseId: string) => api.get(`/assignments/course/${courseId}`).then((res) => res.data),
 
@@ -17,7 +23,7 @@ export const assignmentsApi = {
 
   getMyReviews: () => api.get('/assignments/my-reviews').then((res) => res.data),
 
-  submitReview: (submissionId: string, data: { scores: any[]; overallFeedback: string }) =>
+  submitReview: (submissionId: string, data: { scores: ReviewScore[]; overallFeedback: string }) =>
     api.post(`/assignments/reviews/${submissionId}`, data).then((res) => res.data),
 
   assignReviewers: (id: string) => api.post(`/assignments/${id}/assign-reviewers`).then((res) => res.data),

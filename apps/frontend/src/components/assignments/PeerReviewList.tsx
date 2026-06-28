@@ -4,9 +4,22 @@ import React from 'react';
 import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 
+interface ReviewScore {
+  criterionId: string;
+  score: number;
+  feedback: string;
+}
+
+interface PeerReview {
+  id: string;
+  scores: ReviewScore[];
+  overallFeedback: string;
+  isSubmitted: boolean;
+}
+
 interface PeerReviewListProps {
   submission: {
-    peerReviews: any[];
+    peerReviews: PeerReview[];
     finalGrade: number | null;
     instructorGrade: number | null;
     instructorFeedback: string | null;
@@ -51,11 +64,11 @@ export const PeerReviewList: React.FC<PeerReviewListProps> = ({ submission }) =>
                 <div className="flex justify-between items-center mb-3">
                   <span className="font-medium text-gray-700">Reviewer #{i + 1}</span>
                   <Badge variant="outline">
-                    Score: {review.scores.reduce((sum: number, s: any) => sum + s.score, 0)} pts
+                    Score: {review.scores.reduce((sum: number, s: ReviewScore) => sum + s.score, 0)} pts
                   </Badge>
                 </div>
                 <div className="space-y-3">
-                  {review.scores.map((s: any) => (
+                  {review.scores.map((s: ReviewScore) => (
                     <div key={s.criterionId} className="text-sm">
                       <span className="font-semibold text-gray-600">{s.criterionId}: </span>
                       <span className="text-gray-700">{s.feedback}</span>
