@@ -28,7 +28,7 @@ export class EmailController {
   @UseGuards(JwtAuthGuard)
   @Get('preferences')
   @ApiOperation({ summary: 'Get email preferences' })
-  getPreferences(@Request() req: any) {
+  getPreferences(@Request() req: { user: { userId: string } }) {
     return this.service.getPreferences(req.user.userId);
   }
 
@@ -36,7 +36,7 @@ export class EmailController {
   @UseGuards(JwtAuthGuard)
   @Patch('preferences')
   @ApiOperation({ summary: 'Update email preferences' })
-  updatePreferences(@Request() req: any, @Body() dto: UpdatePrefsDto) {
+  updatePreferences(@Request() req: { user: { userId: string } }, @Body() dto: UpdatePrefsDto) {
     return this.service.updatePreferences(req.user.userId, dto);
   }
 }

@@ -21,36 +21,36 @@ export interface RubricScore {
 @Unique(['submissionId', 'reviewerId'])
 export class PeerReview {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  submissionId: string;
+  submissionId!: string;
 
   @ManyToOne(() => AssignmentSubmission, (submission) => submission.peerReviews, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'submissionId' })
-  submission: AssignmentSubmission;
+  submission!: AssignmentSubmission;
 
   @Column()
-  reviewerId: string;
+  reviewerId!: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'reviewerId' })
-  reviewer: User;
+  reviewer!: User;
 
   @Column('jsonb', { default: [] })
-  scores: RubricScore[];
+  scores!: RubricScore[];
 
   @Column('text', { nullable: true })
-  overallFeedback: string;
+  overallFeedback!: string;
 
   @Column('boolean', { default: false })
-  isSubmitted: boolean;
+  isSubmitted!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

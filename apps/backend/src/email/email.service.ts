@@ -71,8 +71,9 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         setTimeout(() => this.setupPgListener(), 10_000);
       });
       this.logger.log('PostgreSQL LISTEN/NOTIFY listener established');
-    } catch (err: any) {
-      this.logger.error('Failed to set up PG listener — will retry in 10s', err.message);
+    } catch (err: unknown) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error('Failed to set up PG listener — will retry in 10s', errorMessage);
       setTimeout(() => this.setupPgListener(), 10_000);
     }
   }
@@ -142,8 +143,8 @@ export class EmailService implements OnModuleInit, OnModuleDestroy {
         });
       }
       job.status = EmailStatus.SENT;
-    } catch (err: any) {
-      job.lastError = err.message;
+    } catch (err: unknown) {
+      job.lastError = err instanceof Error ? err.message : 'Unknown error';
       if (job.attempts >= MAX_ATTEMPTS) {
         job.status = EmailStatus.FAILED;
       } else {

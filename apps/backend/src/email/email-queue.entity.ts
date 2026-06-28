@@ -9,33 +9,33 @@ export enum EmailStatus {
 @Entity('email_queue')
 export class EmailQueue {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  to: string;
+  to!: string;
 
   @Column()
-  subject: string;
+  subject!: string;
 
   @Column('text')
-  html: string;
+  html!: string;
 
   @Index()
   @Column({ type: 'varchar', default: EmailStatus.PENDING })
-  status: EmailStatus;
+  status!: EmailStatus;
 
   @Column({ default: 0 })
-  attempts: number;
+  attempts!: number;
 
   @Column({ nullable: true, type: 'text' })
-  lastError: string;
+  lastError!: string;
 
   @Column({ nullable: true, type: 'timestamp' })
-  nextRetryAt: Date;
+  nextRetryAt!: Date;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

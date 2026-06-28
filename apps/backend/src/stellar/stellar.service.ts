@@ -134,6 +134,27 @@ export class StellarService implements OnApplicationShutdown {
     return { message: `Account ${publicKey} funded successfully` };
   }
 
+  async mintCertificateNFT(
+    recipientPublicKey: string,
+    certificateHash: string,
+    courseTitle: string,
+  ): Promise<string> {
+    this.ensureSecretKeyConfigured();
+    if (!this.certificateContractId) {
+      throw new Error('CERTIFICATE_CONTRACT_ID is not configured');
+    }
+
+    return this.trackTransaction(() =>
+      this.retryWithBackoff(() =>
+        this.invokeContract(this.certificateContractId, 'mint_certificate', [
+          new Address(recipientPublicKey).toScVal(),
+          nativeToScVal(certificateHash, { type: 'string' }),
+          nativeToScVal(courseTitle, { type: 'string' }),
+        ]),
+      ),
+    );
+  }
+
   async issueCredential(
     recipientPublicKey: string,
     courseId: string,

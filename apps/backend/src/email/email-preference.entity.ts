@@ -3,33 +3,33 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateCol
 @Entity('email_preferences')
 export class EmailPreference {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Index({ unique: true })
   @Column()
-  userId: string;
+  userId!: string;
 
   @Column({ default: true })
-  enrollment: boolean;
+  enrollment!: boolean;
 
   @Column({ default: true })
-  completion: boolean;
+  completion!: boolean;
 
   @Column({ default: true })
-  credentialIssued: boolean;
+  credentialIssued!: boolean;
 
   @Column({ default: true })
-  marketing: boolean;
+  marketing!: boolean;
 
   @Column({ nullable: true, unique: true })
-  unsubscribeToken: string;
+  unsubscribeToken!: string;
 
   @Column({ default: false })
-  unsubscribedAll: boolean;
+  unsubscribedAll!: boolean;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

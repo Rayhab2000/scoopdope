@@ -12,41 +12,41 @@ export type BatchJobType = 'users' | 'courses';
 @Entity('batch_jobs')
 export class BatchJob {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  type: BatchJobType;
+  type!: BatchJobType;
 
   @Column({ default: 'pending' })
-  status: BatchJobStatus;
+  status!: BatchJobStatus;
 
   @Column('jsonb')
-  payload: Record<string, any>[];
+  payload!: Array<Record<string, unknown>>;
 
   @Column('jsonb', { nullable: true })
-  results: Record<string, any>[] | null;
+  results!: Array<Record<string, unknown>> | null;
 
   @Column('jsonb', { nullable: true })
-  errors: Record<string, any>[] | null;
+  errors!: Array<Record<string, unknown>> | null;
 
   @Column({ default: 0 })
-  totalItems: number;
+  totalItems!: number;
 
   @Column({ default: 0 })
-  processedItems: number;
+  processedItems!: number;
 
   @Column({ default: 0 })
-  failedItems: number;
+  failedItems!: number;
 
   @Column({ nullable: true })
-  createdById: string;
+  createdById!: string;
 
   @Column({ nullable: true, type: 'timestamp' })
-  startedAt: Date | null;
+  startedAt!: Date | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

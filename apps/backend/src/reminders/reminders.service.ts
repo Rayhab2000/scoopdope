@@ -69,6 +69,7 @@ export class RemindersService {
 
       offset += batchSize;
     }
+  }
 
   async createReminder(userId: string, courseId: string): Promise<Reminder> {
     const reminder = this.remindersRepository.create({

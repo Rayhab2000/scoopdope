@@ -62,12 +62,14 @@ export class CertificatesService {
       this.logger.log(
         `Certificate auto-issued for user=${payload.userId} course=${payload.courseId}`,
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // ConflictException = already issued — treat as success
       if (err instanceof ConflictException) return;
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const stack = err instanceof Error ? err.stack : undefined;
       this.logger.error(
-        `Auto-issuance failed for user=${payload.userId} course=${payload.courseId}: ${err.message}`,
-        err.stack,
+        `Auto-issuance failed for user=${payload.userId} course=${payload.courseId}: ${errorMessage}`,
+        stack,
       );
     }
   }
@@ -147,10 +149,12 @@ export class CertificatesService {
       this.logger.log(
         `Certificate minted on-chain — user=${userId} course=${courseId} tx=${txHash}`,
       );
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const stack = error instanceof Error ? error.stack : undefined;
       this.logger.error(
-        `On-chain certificate minting failed for user=${userId} course=${courseId}: ${error.message}`,
-        error.stack,
+        `On-chain certificate minting failed for user=${userId} course=${courseId}: ${errorMessage}`,
+        stack,
       );
 
       // Roll back the pending row so we don't leave a ghost record
@@ -161,7 +165,7 @@ export class CertificatesService {
       throw new InternalServerErrorException({
         message:
           'Failed to mint certificate on the Stellar network. Please try again.',
-        detail: error.message,
+        detail: errorMessage,
       });
     }
 
@@ -214,8 +218,9 @@ export class CertificatesService {
             ledgerTimestamp: match.createdAt,
           };
         }
-      } catch (err: any) {
-        this.logger.warn(`Horizon lookup failed during verification: ${err.message}`);
+      } catch (err: unknown) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        this.logger.warn(`Horizon lookup failed during verification: ${errorMessage}`);
         // Not fatal — we still return the DB record; onChain.found remains false
       }
     }

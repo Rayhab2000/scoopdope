@@ -31,38 +31,38 @@ export class WebhooksController {
 
   @Post()
   @ApiOperation({ summary: 'Register a webhook' })
-  create(@Request() req: any, @Body() dto: CreateWebhookDto) {
+  create(@Request() req: { user: { userId: string } }, @Body() dto: CreateWebhookDto) {
     return this.service.register(req.user.userId, dto.url, dto.events);
   }
 
   @Get()
   @ApiOperation({ summary: 'List webhooks' })
-  list(@Request() req: any) {
+  list(@Request() req: { user: { userId: string } }) {
     return this.service.list(req.user.userId);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a webhook' })
-  update(@Request() req: any, @Param('id') id: string, @Body() dto: UpdateWebhookDto) {
+  update(@Request() req: { user: { userId: string } }, @Param('id') id: string, @Body() dto: UpdateWebhookDto) {
     return this.service.update(req.user.userId, id, dto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a webhook' })
-  remove(@Request() req: any, @Param('id') id: string) {
+  remove(@Request() req: { user: { userId: string } }, @Param('id') id: string) {
     return this.service.delete(req.user.userId, id);
   }
 
   @Get(':id/logs')
   @ApiOperation({ summary: 'Get delivery logs for a webhook' })
-  logs(@Request() req: any, @Param('id') id: string) {
+  logs(@Request() req: { user: { userId: string } }, @Param('id') id: string) {
     return this.service.getLogs(id, req.user.userId);
   }
 
   @Post('verify-signature')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify a webhook signature (for testing)' })
-  async verifySignature(@Request() req: any, @Body() dto: VerifySignatureDto) {
+  async verifySignature(@Request() req: { user: { userId: string } }, @Body() dto: VerifySignatureDto) {
     const webhook = await this.service.getWebhookForUser(dto.webhookId, req.user.userId);
     const valid = this.service.verifySignature(webhook.secret, dto.body, dto.signature, dto.timestamp);
     if (!valid) throw new UnauthorizedException('Invalid signature or timestamp');

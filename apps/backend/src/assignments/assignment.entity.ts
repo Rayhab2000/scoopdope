@@ -21,36 +21,36 @@ export interface RubricCriterion {
 @Entity('assignments')
 export class Assignment {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  lessonId: string;
+  lessonId!: string;
 
   @ManyToOne(() => Lesson, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'lessonId' })
-  lesson: Lesson;
+  lesson!: Lesson;
 
   @Column()
-  title: string;
+  title!: string;
 
   @Column('text')
-  description: string;
+  description!: string;
 
   @Column('timestamp')
-  dueDate: Date;
+  dueDate!: Date;
 
   @Column('int')
-  maxPoints: number;
+  maxPoints!: number;
 
   @Column('jsonb', { default: [] })
-  rubric: RubricCriterion[];
+  rubric!: RubricCriterion[];
 
   @OneToMany(() => AssignmentSubmission, (submission) => submission.assignment)
-  submissions: AssignmentSubmission[];
+  submissions!: AssignmentSubmission[];
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

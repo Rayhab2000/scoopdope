@@ -17,40 +17,40 @@ import { PeerReview } from './peer-review.entity';
 @Unique(['assignmentId', 'userId'])
 export class AssignmentSubmission {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  assignmentId: string;
+  assignmentId!: string;
 
   @ManyToOne(() => Assignment, (assignment) => assignment.submissions, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'assignmentId' })
-  assignment: Assignment;
+  assignment!: Assignment;
 
   @Column()
-  userId: string;
+  userId!: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @Column()
-  fileUrl: string;
+  fileUrl!: string;
 
   @CreateDateColumn()
-  submittedAt: Date;
+  submittedAt!: Date;
 
   @Column('float', { nullable: true })
-  instructorGrade: number;
+  instructorGrade!: number;
 
   @Column('text', { nullable: true })
-  instructorFeedback: string;
+  instructorFeedback!: string;
 
   @Column('float', { nullable: true })
-  finalGrade: number;
+  finalGrade!: number;
 
   @OneToMany(() => PeerReview, (review) => review.submission)
-  peerReviews: PeerReview[];
+  peerReviews!: PeerReview[];
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

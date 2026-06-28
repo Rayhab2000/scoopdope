@@ -181,10 +181,19 @@ export class SearchService implements OnModuleInit {
       size: 0,
     });
 
+    interface ElasticsearchSuggestionOption {
+      text: string;
+      _index: string;
+      _id: string;
+    }
+
+    interface ElasticsearchSuggestion {
+      options?: ElasticsearchSuggestionOption[];
+    }
+
     const suggestions =
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (response.suggest?.['suggestions'] as any[])?.flatMap((s: any) =>
-        (s.options ?? []).map((o: any) => ({ text: o.text, index: o._index, id: o._id }))
+      (response.suggest?.['suggestions'] as ElasticsearchSuggestion[] | undefined)?.flatMap((s) =>
+        (s.options ?? []).map((o) => ({ text: o.text, index: o._index, id: o._id }))
       ) ?? [];
 
     return suggestions;
