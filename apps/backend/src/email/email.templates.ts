@@ -55,4 +55,36 @@ export const emailTemplates = {
         </p>
       </div>`,
   }),
+
+  liveSessionReminder: (data: { userName: string; sessionTitle: string; date: string; timeLabel: string; joinUrl: string; sessionUrl: string }) => ({
+    subject: `⏰ Reminder: "${data.sessionTitle}" starts in ${data.timeLabel}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>⏰ Session starting in ${data.timeLabel}</h2>
+        <p>Hi ${data.userName},</p>
+        <p><strong>${data.sessionTitle}</strong> starts in ${data.timeLabel}.</p>
+        <ul>
+          <li><strong>Date:</strong> ${data.date}</li>
+          ${data.joinUrl ? `<li><strong>Join:</strong> <a href="${data.joinUrl}">${data.joinUrl}</a></li>` : ''}
+        </ul>
+        <a href="${data.joinUrl || data.sessionUrl}" style="background:#059669;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Join Now</a>
+      </div>`,
+  }),
+
+  calendarInvite: (data: { userName: string; sessionTitle: string; date: string; duration: number; joinUrl?: string; sessionUrl: string }) => ({
+    subject: `📅 Live Session: ${data.sessionTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
+        <h2>📅 You're invited to a live session</h2>
+        <p>Hi ${data.userName},</p>
+        <p><strong>${data.sessionTitle}</strong> has been scheduled.</p>
+        <ul>
+          <li><strong>Date:</strong> ${data.date}</li>
+          <li><strong>Duration:</strong> ${data.duration} minutes</li>
+          ${data.joinUrl ? `<li><strong>Join:</strong> <a href="${data.joinUrl}">${data.joinUrl}</a></li>` : ''}
+        </ul>
+        <p>Add to your calendar using the attached .ics file.</p>
+        <a href="${data.sessionUrl}" style="background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">View Session</a>
+      </div>`,
+  }),
 };

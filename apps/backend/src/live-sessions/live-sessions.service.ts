@@ -7,6 +7,7 @@ import { CohortMember } from '../cohorts/cohort-member.entity';
 import { User } from '../users/user.entity';
 import { CreateLiveSessionDto, UpdateLiveSessionDto } from './live-session.dto';
 import { EmailService } from '../email/email.service';
+import { emailTemplates } from '../email/email.templates';
 import { ConfigService } from '@nestjs/config';
 
 @Injectable()
@@ -100,13 +101,19 @@ export class LiveSessionsService {
     const users = await this.getMembers(session.cohortId);
     const frontendUrl = this.config.get<string>('frontend.url');
     const icsContent = this.buildIcs(session, frontendUrl);
+    const date = session.scheduledAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
 
     for (const user of users) {
-      await this.emailService.enqueue(
-        user.email,
-        `📅 Live Session: ${session.title}`,
-        this.calendarInviteHtml(session, user.username ?? user.email, frontendUrl, icsContent),
-      );
+      const template = emailTemplates.calendarInvite({
+        userName: user.username ?? user.email,
+        sessionTitle: session.title,
+        date,
+        duration: session.durationMinutes,
+        joinUrl: session.meetingUrl,
+        sessionUrl: `${frontendUrl}/live-sessions/${session.id}`,
+      });
+
+      await this.emailService.enqueue(user.email, template.subject, template.html);
     }
     this.logger.log(`Calendar invites sent for session "${session.title}" to ${users.length} member(s)`);
   }
@@ -115,13 +122,19 @@ export class LiveSessionsService {
     const users = await this.getMembers(session.cohortId);
     const frontendUrl = this.config.get<string>('frontend.url');
     const timeLabel = label === '24h' ? '24 hours' : '1 hour';
+    const date = session.scheduledAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
 
     for (const user of users) {
-      await this.emailService.enqueue(
-        user.email,
-        `⏰ Reminder: "${session.title}" starts in ${timeLabel}`,
-        this.reminderHtml(session, user.username ?? user.email, timeLabel, frontendUrl),
-      );
+      const template = emailTemplates.liveSessionReminder({
+        userName: user.username ?? user.email,
+        sessionTitle: session.title,
+        date,
+        timeLabel,
+        joinUrl: session.meetingUrl || '',
+        sessionUrl: `${frontendUrl}/live-sessions/${session.id}`,
+      });
+
+      await this.emailService.enqueue(user.email, template.subject, template.html);
     }
     this.logger.log(`${label} reminders sent for session "${session.title}" to ${users.length} member(s)`);
   }
@@ -147,37 +160,5 @@ export class LiveSessionsService {
       'END:VEVENT',
       'END:VCALENDAR',
     ].join('\r\n');
-  }
-
-  private calendarInviteHtml(session: LiveSession, name: string, frontendUrl: string, ics: string): string {
-    const date = session.scheduledAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
-    return `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>📅 You're invited to a live session</h2>
-        <p>Hi ${name},</p>
-        <p><strong>${session.title}</strong> has been scheduled.</p>
-        <ul>
-          <li><strong>Date:</strong> ${date}</li>
-          <li><strong>Duration:</strong> ${session.durationMinutes} minutes</li>
-          ${session.meetingUrl ? `<li><strong>Join:</strong> <a href="${session.meetingUrl}">${session.meetingUrl}</a></li>` : ''}
-        </ul>
-        <p>Add to your calendar using the attached .ics file.</p>
-        <a href="${frontendUrl}/live-sessions/${session.id}" style="background:#4F46E5;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">View Session</a>
-      </div>`;
-  }
-
-  private reminderHtml(session: LiveSession, name: string, timeLabel: string, frontendUrl: string): string {
-    const date = session.scheduledAt.toLocaleString('en-US', { dateStyle: 'full', timeStyle: 'short' });
-    return `
-      <div style="font-family:sans-serif;max-width:600px;margin:0 auto">
-        <h2>⏰ Session starting in ${timeLabel}</h2>
-        <p>Hi ${name},</p>
-        <p><strong>${session.title}</strong> starts in ${timeLabel}.</p>
-        <ul>
-          <li><strong>Date:</strong> ${date}</li>
-          ${session.meetingUrl ? `<li><strong>Join:</strong> <a href="${session.meetingUrl}">${session.meetingUrl}</a></li>` : ''}
-        </ul>
-        <a href="${session.meetingUrl ?? `${frontendUrl}/live-sessions/${session.id}`}" style="background:#059669;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;display:inline-block">Join Now</a>
-      </div>`;
   }
 }
