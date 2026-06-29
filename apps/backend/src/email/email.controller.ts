@@ -34,13 +34,7 @@ export class EmailController {
   @UseGuards(JwtAuthGuard)
   @Get('preferences')
   @ApiOperation({ summary: 'Get email preferences' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  @ApiResponse({ status: 429, description: 'Too many requests' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  getPreferences(@Request() req: any) {
+  getPreferences(@Request() req: { user: { userId: string } }) {
     return this.service.getPreferences(req.user.userId);
   }
 
@@ -48,13 +42,7 @@ export class EmailController {
   @UseGuards(JwtAuthGuard)
   @Patch('preferences')
   @ApiOperation({ summary: 'Update email preferences' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  @ApiResponse({ status: 429, description: 'Too many requests' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  updatePreferences(@Request() req: any, @Body() dto: UpdatePrefsDto) {
+  updatePreferences(@Request() req: { user: { userId: string } }, @Body() dto: UpdatePrefsDto) {
     return this.service.updatePreferences(req.user.userId, dto);
   }
 }

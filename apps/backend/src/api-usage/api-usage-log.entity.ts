@@ -5,31 +5,31 @@ import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 
 @Index(['userId', 'createdAt'])
 export class ApiUsageLog {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
   @Index()
-  endpoint: string;
+  endpoint!: string;
 
   @Column()
-  method: string;
+  method!: string;
 
   @Column({ nullable: true })
   @Index()
-  userId: string | null;
+  userId!: string | null;
 
   @Column({ nullable: true })
-  ip: string;
+  ip!: string;
 
   @Column()
-  statusCode: number;
+  statusCode!: number;
 
   @Column({ default: 0 })
-  responseTimeMs: number;
+  responseTimeMs!: number;
 
   @Column({ nullable: true, type: 'text' })
-  userAgent: string;
+  userAgent!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 }

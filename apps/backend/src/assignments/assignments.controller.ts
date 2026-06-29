@@ -17,6 +17,14 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { RubricScore } from './peer-review.entity';
+import { User } from '../users/user.entity';
+
+interface CreateAssignmentPayload {
+  title: string;
+  description?: string;
+  courseId?: string;
+  dueDate?: string | Date;
+}
 
 @ApiTags('assignments')
 @Controller('assignments')
@@ -28,14 +36,11 @@ export class AssignmentsController {
   @Roles('admin', 'instructor')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new assignment' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  @ApiResponse({ status: 429, description: 'Too many requests' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  createAssignment(@Body() data: any) {
-    return this.assignmentsService.createAssignment(data);
+  createAssignment(@Body() data: CreateAssignmentPayload) {
+    return this.assignmentsService.createAssignment({
+      ...data,
+      dueDate: data.dueDate ? new Date(data.dueDate) : undefined,
+    });
   }
 
   @Get('course/:courseId')
@@ -87,7 +92,7 @@ export class AssignmentsController {
   @ApiResponse({ status: 429, description: 'Too many requests' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   async submitAssignment(
-    @CurrentUser() user: any,
+    @CurrentUser() user: Pick<User, 'id'>,
     @Param('id') id: string,
     @UploadedFile() file: Express.Multer.File,
   ) {
@@ -101,13 +106,7 @@ export class AssignmentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user submission for an assignment' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  @ApiResponse({ status: 429, description: 'Too many requests' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  getMySubmission(@CurrentUser() user: any, @Param('id') id: string) {
+  getMySubmission(@CurrentUser() user: Pick<User, 'id'>, @Param('id') id: string) {
     return this.assignmentsService.getSubmissionByUser(user.id, id);
   }
 
@@ -130,13 +129,7 @@ export class AssignmentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get peer reviews assigned to the current user' })
-  @ApiResponse({ status: 400, description: 'Bad request' })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  @ApiResponse({ status: 403, description: 'Forbidden' })
-  @ApiResponse({ status: 404, description: 'Not found' })
-  @ApiResponse({ status: 429, description: 'Too many requests' })
-  @ApiResponse({ status: 500, description: 'Internal server error' })
-  getMyReviews(@CurrentUser() user: any) {
+  getMyReviews(@CurrentUser() user: Pick<User, 'id'>) {
     return this.assignmentsService.getReviewsForUser(user.id);
   }
 
@@ -151,7 +144,7 @@ export class AssignmentsController {
   @ApiResponse({ status: 429, description: 'Too many requests' })
   @ApiResponse({ status: 500, description: 'Internal server error' })
   submitReview(
-    @CurrentUser() user: any,
+    @CurrentUser() user: Pick<User, 'id'>,
     @Param('submissionId') submissionId: string,
     @Body() data: { scores: RubricScore[]; overallFeedback: string },
   ) {

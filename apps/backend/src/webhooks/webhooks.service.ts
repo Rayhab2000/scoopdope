@@ -53,7 +53,7 @@ export class WebhooksService implements OnModuleInit {
     const wh = await this.webhookRepo.findOne({ where: { id, userId } });
     if (!wh) throw new NotFoundException('Webhook not found');
     if (data.url) wh.url = data.url;
-    if (data.events) wh.events = Array.isArray(data.events) ? (data.events as any).join(',') : data.events;
+    if (data.events) wh.events = Array.isArray(data.events) ? data.events.join(',') : data.events;
     if (data.isActive !== undefined) wh.isActive = data.isActive;
     return this.webhookRepo.save(wh);
   }
@@ -132,8 +132,8 @@ export class WebhooksService implements OnModuleInit {
         delivery.nextRetryAt = new Date(Date.now() + delay * 1000);
         delivery.status = DeliveryStatus.PENDING;
       }
-    } catch (err: any) {
-      delivery.responseBody = err.message;
+    } catch (err: unknown) {
+      delivery.responseBody = err instanceof Error ? err.message : 'Unknown error';
       delivery.status = DeliveryStatus.FAILED;
       if (delivery.attempts < MAX_ATTEMPTS) {
         const delay = RETRY_DELAYS[delivery.attempts - 1] ?? 7200;
@@ -207,14 +207,14 @@ export class WebhooksService implements OnModuleInit {
   // --- Event listeners ---
 
   @OnEvent('enrollment.created')
-  onEnrollment(payload: any) { this.publish('enrollment.created', payload); }
+  onEnrollment(payload: Record<string, unknown>) { this.publish('enrollment.created', payload); }
 
   @OnEvent('enrollment.completed')
-  onCompletion(payload: any) { this.publish('enrollment.completed', payload); }
+  onCompletion(payload: Record<string, unknown>) { this.publish('enrollment.completed', payload); }
 
   @OnEvent('credential.issued')
-  onCredential(payload: any) { this.publish('credential.issued', payload); }
+  onCredential(payload: Record<string, unknown>) { this.publish('credential.issued', payload); }
 
   @OnEvent('token.rewarded')
-  onTokenRewarded(payload: any) { this.publish('token.rewarded', payload); }
+  onTokenRewarded(payload: Record<string, unknown>) { this.publish('token.rewarded', payload); }
 }

@@ -22,53 +22,53 @@ export enum ContentType {
 @Entity('cdn_assets')
 export class CdnAsset {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column({ nullable: true })
-  lessonId: string;
+  lessonId!: string;
 
   @Column()
-  fileName: string;
+  fileName!: string;
 
   @Column()
-  originalName: string;
+  originalName!: string;
 
   @Column()
-  cdnUrl: string;
+  cdnUrl!: string;
 
   @Column({ type: 'enum', enum: ContentType })
-  contentType: ContentType;
+  contentType!: ContentType;
 
   @Column({ type: 'enum', enum: AssetType, nullable: true })
-  assetType: AssetType | null;
+  assetType!: AssetType | null;
 
   @Column({ type: 'bigint' })
-  fileSize: number;
+  fileSize!: number;
 
   @Column({ nullable: true })
-  mimeType: string | null;
+  mimeType!: string | null;
 
   @Column({ nullable: true })
-  duration: number;
+  duration!: number;
 
   @Column({ default: false })
-  isTranscoded: boolean;
+  isTranscoded!: boolean;
 
   @Column({ default: true })
-  isPrivate: boolean;
+  isPrivate!: boolean;
 
   @Column('simple-array', { nullable: true })
-  availableBitrates: string[];
+  availableBitrates!: string[];
 
   @Column({ nullable: true })
-  thumbnailUrl: string;
+  thumbnailUrl!: string;
 
   @Column({ nullable: true })
-  uploadedByUserId: string | null;
+  uploadedByUserId!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

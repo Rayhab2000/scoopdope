@@ -3,23 +3,23 @@ import { Column, CreateDateColumn, Entity, PrimaryGeneratedColumn } from 'typeor
 @Entity('search_analytics')
 export class SearchAnalytic {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  query: string;
+  query!: string;
 
   @Column({ nullable: true })
-  userId: string | null;
+  userId!: string | null;
 
   @Column({ default: 0 })
-  resultsCount: number;
+  resultsCount!: number;
 
   @Column({ nullable: true })
-  clickedResultId: string | null;
+  clickedResultId!: string | null;
 
   @Column({ nullable: true })
-  clickedResultType: string | null;
+  clickedResultType!: string | null;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 }

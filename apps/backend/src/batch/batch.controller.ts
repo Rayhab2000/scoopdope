@@ -3,7 +3,7 @@ import { ApiBearerAuth, ApiBody, ApiOperation, ApiQuery, ApiResponse, ApiTags } 
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { BatchService } from './batch.service';
+import { BatchService, BatchPayloadItem } from './batch.service';
 
 @ApiTags('batch')
 @ApiBearerAuth()
@@ -32,7 +32,7 @@ export class BatchController {
     },
   })
   batchUsers(
-    @Body('operations') operations: Record<string, any>[],
+    @Body('operations') operations: BatchPayloadItem[],
     @Request() req: { user: { id: string } },
   ) {
     return this.batchService.createUserBatch(operations, req.user.id);
@@ -57,7 +57,7 @@ export class BatchController {
     },
   })
   batchCourses(
-    @Body('operations') operations: Record<string, any>[],
+    @Body('operations') operations: BatchPayloadItem[],
     @Request() req: { user: { id: string } },
   ) {
     return this.batchService.createCourseBatch(operations, req.user.id);

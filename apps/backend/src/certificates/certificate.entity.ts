@@ -12,37 +12,37 @@ import { Course } from '../courses/course.entity';
 @Entity('certificates')
 export class Certificate {
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @Column()
-  userId: string;
+  userId!: string;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })
-  user: User;
+  user!: User;
 
   @Column()
-  courseId: string;
+  courseId!: string;
 
   @ManyToOne(() => Course, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'courseId' })
-  course: Course;
+  course!: Course;
 
   @Column()
-  certificateHash: string;
+  certificateHash!: string;
 
   @Column({ nullable: true })
-  ipfsHash: string;
+  ipfsHash!: string;
 
   @Column({ nullable: true })
-  stellarTransactionId: string;
+  stellarTransactionId!: string;
 
   @Column({ default: 'pending' })
-  status: 'pending' | 'minted' | 'verified';
+  status!: 'pending' | 'minted' | 'verified';
 
   @Column({ nullable: true })
-  pdfUrl: string;
+  pdfUrl!: string;
 
   @CreateDateColumn()
-  issuedAt: Date;
+  issuedAt!: Date;
 }

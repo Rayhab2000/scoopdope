@@ -28,7 +28,17 @@ export const useOnboardingStore = create<OnboardingState>()(
       setStep: (currentStep) => set({ currentStep }),
       setWalletConnected: (walletConnected) => set({ walletConnected }),
       setSelectedCourse: (selectedCourseId) => set({ selectedCourseId }),
-      complete: () => set({ completed: true, currentStep: 'complete' }),
+      complete: () => {
+        set({ completed: true, currentStep: 'complete' });
+        // Clear persisted state after completion
+        setTimeout(() => {
+          set({
+            currentStep: 'wallet',
+            walletConnected: false,
+            selectedCourseId: null,
+          });
+        }, 100);
+      },
       skip: () => set({ skipped: true, completed: true }),
       reset: () =>
         set({
