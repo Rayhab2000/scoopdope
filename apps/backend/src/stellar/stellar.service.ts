@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject, ServiceUnavailableException, OnApplicationS
 import { ConfigService } from '@nestjs/config';
 import { Cache } from 'cache-manager';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import pRetry from 'p-retry';
 import {
   Horizon,
   Keypair,
@@ -15,7 +16,16 @@ import {
 } from '@stellar/stellar-sdk';
 
 const MAX_RETRIES = 3;
-const BASE_DELAY_MS = 1000;
+const RETRY_OPTIONS = {
+  retries: MAX_RETRIES,
+  minTimeout: 1000,
+  maxTimeout: 8000,
+  onFailedAttempt: (error: pRetry.FailedAttemptError) => {
+    Logger.warn(
+      `Attempt ${error.attemptNumber}/${MAX_RETRIES} failed: ${error.message}`
+    );
+  },
+};
 
 @Injectable()
 export class StellarService implements OnApplicationShutdown {
@@ -86,11 +96,13 @@ export class StellarService implements OnApplicationShutdown {
     }
 
     return this.trackTransaction(() =>
-      this.retryWithBackoff(() =>
-        this.invokeContract(this.enrollmentContractId, 'record_enrollment', [
-          new Address(studentPublicKey).toScVal(),
-          nativeToScVal(courseId, { type: 'string' }),
-        ]),
+      pRetry(
+        () =>
+          this.invokeContract(this.enrollmentContractId, 'record_enrollment', [
+            new Address(studentPublicKey).toScVal(),
+            nativeToScVal(courseId, { type: 'string' }),
+          ]),
+        RETRY_OPTIONS
       )
     );
   }
@@ -142,7 +154,7 @@ export class StellarService implements OnApplicationShutdown {
     this.ensureSecretKeyConfigured();
     return this.trackTransaction(async () => {
       try {
-        await this.retryWithBackoff(() => this.recordProgressOnChain(recipientPublicKey, courseId));
+        await pRetry(() => this.recordProgressOnChain(recipientPublicKey, courseId), RETRY_OPTIONS);
         this.logger.log(`Progress recorded on Soroban for ${courseId}`);
       } catch (error: any) {
         this.logger.error(
@@ -153,9 +165,7 @@ export class StellarService implements OnApplicationShutdown {
 
       if (metadata && this.credentialMetadataContractId) {
         try {
-          await this.retryWithBackoff(() =>
-            this.storeCredentialMetadata(recipientPublicKey, metadata)
-          );
+          await pRetry(() => this.storeCredentialMetadata(recipientPublicKey, metadata), RETRY_OPTIONS);
           this.logger.log(`Metadata stored on-chain for ${metadata.courseName}`);
         } catch (error: any) {
           this.logger.error(`Failed to store metadata on-chain: ${error.message}`);
@@ -190,12 +200,14 @@ export class StellarService implements OnApplicationShutdown {
   ): Promise<string> {
     this.ensureSecretKeyConfigured();
     return this.trackTransaction(() =>
-      this.retryWithBackoff(() =>
-        this.invokeContract(this.analyticsContractId ?? this.contractId, 'record_progress', [
-          new Address(studentPublicKey).toScVal(),
-          nativeToScVal(courseId, { type: 'symbol' }),
-          nativeToScVal(_progressPct, { type: 'i32' }),
-        ])
+      pRetry(
+        () =>
+          this.invokeContract(this.analyticsContractId ?? this.contractId, 'record_progress', [
+            new Address(studentPublicKey).toScVal(),
+            nativeToScVal(courseId, { type: 'symbol' }),
+            nativeToScVal(_progressPct, { type: 'i32' }),
+          ]),
+        RETRY_OPTIONS
       )
     );
   }
@@ -248,11 +260,13 @@ export class StellarService implements OnApplicationShutdown {
       throw new Error('TOKEN_CONTRACT_ID not configured');
     }
     return this.trackTransaction(() =>
-      this.retryWithBackoff(() =>
-        this.invokeContract(this.tokenContractId, 'mint_reward', [
-          new Address(recipientPublicKey).toScVal(),
-          nativeToScVal(amount, { type: 'i128' }),
-        ])
+      pRetry(
+        () =>
+          this.invokeContract(this.tokenContractId, 'mint_reward', [
+            new Address(recipientPublicKey).toScVal(),
+            nativeToScVal(amount, { type: 'i128' }),
+          ]),
+        RETRY_OPTIONS
       )
     );
   }
@@ -397,17 +411,5 @@ export class StellarService implements OnApplicationShutdown {
     const result = await this.server.submitTransaction(tx);
     this.logger.log(`Credential issued via Horizon: ${result.hash}`);
     return result.hash;
-  }
-
-  private async retryWithBackoff<T>(fn: () => Promise<T>, attempt = 1): Promise<T> {
-    try {
-      return await fn();
-    } catch (error) {
-      if (attempt >= MAX_RETRIES) throw error;
-      const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
-      this.logger.warn(`Attempt ${attempt} failed, retrying in ${delay}ms`);
-      await new Promise((r) => setTimeout(r, delay));
-      return this.retryWithBackoff(fn, attempt + 1);
-    }
   }
 }
