@@ -46,10 +46,23 @@ export function CertificateViewer({ certificate, isOpen, onClose }: CertificateV
     }
   };
 
-  const shareLinkedIn = () => {
-    const url = `${window.location.origin}/certificates/${certificate.id}`;
-    const linkedInUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`;
-    window.open(linkedInUrl, '_blank', 'width=600,height=600');
+  const addToLinkedIn = () => {
+    const certUrl = `${window.location.origin}/certificates/${certificate.id}`;
+    const issueDate = new Date(certificate.issuedAt);
+    const issueYear = issueDate.getFullYear();
+    const issueMonth = issueDate.getMonth() + 1;
+    
+    // LinkedIn Add to Profile URL for certifications
+    const linkedInUrl = new URL('https://www.linkedin.com/profile/add');
+    linkedInUrl.searchParams.set('startTask', 'CERTIFICATION_NAME');
+    linkedInUrl.searchParams.set('name', certificate.courseName);
+    linkedInUrl.searchParams.set('organizationId', '0'); // Replace with actual org ID if available
+    linkedInUrl.searchParams.set('issueYear', issueYear.toString());
+    linkedInUrl.searchParams.set('issueMonth', issueMonth.toString());
+    linkedInUrl.searchParams.set('certUrl', certUrl);
+    linkedInUrl.searchParams.set('certId', certificate.id);
+    
+    window.open(linkedInUrl.toString(), '_blank', 'width=600,height=600');
   };
 
   const shareTwitter = () => {
@@ -116,17 +129,19 @@ export function CertificateViewer({ certificate, isOpen, onClose }: CertificateV
           </div>
 
           <div className="border-t pt-3">
-            <p className="text-sm font-medium mb-2">Share on social media:</p>
-            <div className="flex gap-2">
-              <Button onClick={shareLinkedIn} variant="outline" className="flex-1">
-                LinkedIn
+            <p className="text-sm font-medium mb-2">Share your achievement:</p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={addToLinkedIn} variant="primary" className="w-full">
+                🔗 Add to LinkedIn Profile
               </Button>
-              <Button onClick={shareTwitter} variant="outline" className="flex-1">
-                Twitter
-              </Button>
-              <Button onClick={copyLink} variant="outline" className="flex-1">
-                Copy Link
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={shareTwitter} variant="outline" className="flex-1">
+                  𝕏 Share
+                </Button>
+                <Button onClick={copyLink} variant="outline" className="flex-1">
+                  📋 Copy Link
+                </Button>
+              </div>
             </div>
           </div>
 
