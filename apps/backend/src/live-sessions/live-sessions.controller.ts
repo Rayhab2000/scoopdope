@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -16,6 +16,12 @@ export class LiveSessionsController {
 
   @Get()
   @ApiOperation({ summary: 'List live sessions for a cohort' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   list(@Param('cohortId') cohortId: string) {
     return this.service.findByCohort(cohortId);
   }
@@ -24,6 +30,12 @@ export class LiveSessionsController {
   @UseGuards(RolesGuard)
   @Roles('instructor', 'admin')
   @ApiOperation({ summary: 'Schedule a live session' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   create(
     @Param('cohortId') cohortId: string,
     @Body() dto: CreateLiveSessionDto,
@@ -36,6 +48,12 @@ export class LiveSessionsController {
   @UseGuards(RolesGuard)
   @Roles('instructor', 'admin')
   @ApiOperation({ summary: 'Update a live session' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   update(
     @Param('id') id: string,
     @Body() dto: UpdateLiveSessionDto,
@@ -48,6 +66,12 @@ export class LiveSessionsController {
   @UseGuards(RolesGuard)
   @Roles('instructor', 'admin')
   @ApiOperation({ summary: 'Cancel a live session' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   cancel(@Param('id') id: string, @CurrentUser() user: any) {
     return this.service.cancel(id, user.id);
   }

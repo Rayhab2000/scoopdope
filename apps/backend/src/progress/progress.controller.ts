@@ -13,6 +13,10 @@ export class ProgressController {
 
   @Post('progress')
   @ApiOperation({ summary: 'Record lesson completion and update on-chain progress' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiBody({ schema: { example: { courseId: 'uuid', lessonId: 'uuid', progressPct: 75 } } })
   @ApiResponse({
     status: 201,
@@ -27,6 +31,10 @@ export class ProgressController {
 
   @Get('users/:id/progress')
   @ApiOperation({ summary: 'Get all progress records for a user' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({
     status: 200,
     description: 'List of progress records',

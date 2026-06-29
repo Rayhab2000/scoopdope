@@ -4,6 +4,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { AccessControlService } from './access-control.service';
 import { AccessRole } from './course-access-control.entity';
+import { ApiResponse } from '@nestjs/swagger';
 
 @Controller('v1/access-control')
 @UseGuards(JwtAuthGuard)
@@ -13,6 +14,12 @@ export class AccessControlController {
   @Post('grant')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async grantAccess(@Body() data: any) {
     return this.accessControlService.grantAccess(
       data.courseId,
@@ -26,6 +33,12 @@ export class AccessControlController {
   @Post('grant/timed')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async grantTimedAccess(@Body() data: any) {
     return this.accessControlService.grantTimeLimitedAccess(
       data.courseId,
@@ -36,6 +49,12 @@ export class AccessControlController {
   }
 
   @Post('verify-content')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async verifyContentAccess(@Body() data: any, @Req() req: any) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     await this.accessControlService.verifyContentAccess(
@@ -48,6 +67,12 @@ export class AccessControlController {
   }
 
   @Post('check')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async checkAccess(@Body() data: any, @Req() req: any) {
     const ipAddress = req.ip || req.connection?.remoteAddress;
     return this.accessControlService.checkAccess(
@@ -60,6 +85,12 @@ export class AccessControlController {
   @Delete(':courseId/users/:userId')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async revokeAccess(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
@@ -70,6 +101,12 @@ export class AccessControlController {
   @Post(':courseId/users/:userId/subscription')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async updateSubscription(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
@@ -85,6 +122,12 @@ export class AccessControlController {
   @Get(':courseId/logs')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getAccessLogs(
     @Param('courseId') courseId: string,
     @Body() data?: any,
@@ -97,6 +140,12 @@ export class AccessControlController {
   }
 
   @Get(':courseId/users/:userId')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getAccessControl(
     @Param('courseId') courseId: string,
     @Param('userId') userId: string,
@@ -107,6 +156,12 @@ export class AccessControlController {
   @Get(':courseId/users')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getCourseAccessList(@Param('courseId') courseId: string) {
     return this.accessControlService.getCourseAccessList(courseId);
   }

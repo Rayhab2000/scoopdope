@@ -9,7 +9,7 @@ import {
   UseGuards,
   Request,
 } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { DownloadsService } from './downloads.service';
 
@@ -30,6 +30,12 @@ export class DownloadsController {
 
   @Post()
   @ApiOperation({ summary: 'Queue a lesson/course for offline download' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   queue(@Request() req, @Body() dto: QueueDownloadDto) {
     return this.service.queueDownload(
       req.user.id,
@@ -43,24 +49,48 @@ export class DownloadsController {
 
   @Get()
   @ApiOperation({ summary: 'List all downloads for the current user' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   list(@Request() req) {
     return this.service.findByUser(req.user.id);
   }
 
   @Get('storage')
   @ApiOperation({ summary: 'Get storage usage stats' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   storage(@Request() req) {
     return this.service.getStorageStats(req.user.id);
   }
 
   @Patch(':id/complete')
   @ApiOperation({ summary: 'Mark a download as completed' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   complete(@Request() req, @Param('id') id: string) {
     return this.service.markCompleted(id, req.user.id);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Remove a downloaded item' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   remove(@Request() req, @Param('id') id: string) {
     return this.service.remove(id, req.user.id);
   }
