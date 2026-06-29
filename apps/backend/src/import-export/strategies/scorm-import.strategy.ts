@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Repository } from 'typeorm';
+import * as path from 'path';
 import * as AdmZip from 'adm-zip';
 import { parseStringPromise } from 'xml2js';
 import { Course } from '../../courses/course.entity';
@@ -143,9 +144,34 @@ export class ScormImportStrategy implements ImportStrategy {
     return (first as Record<string, unknown>)?.['title'] as string | undefined;
   }
 
+  /**
+   * Validates that a resolved path remains within the extraction root.
+   * Prevents path traversal attacks like ../../../../etc/passwd.
+   *
+   * @param resolvedPath The absolute resolved path after normalization
+   * @param extractionRoot The root directory where extraction should be confined
+   * @throws BadRequestException if path escapes the extraction root
+   */
+  private validatePathTraversal(resolvedPath: string, extractionRoot: string): void {
+    // Ensure both paths use consistent separators and are absolute
+    const normalized = path.resolve(resolvedPath);
+    const rootNormalized = path.resolve(extractionRoot);
+
+    // Check if the resolved path is a strict child of the extraction root
+    if (!normalized.startsWith(rootNormalized + path.sep) && normalized !== rootNormalized) {
+      throw new BadRequestException(
+        'Invalid path in SCORM package: path traversal detected. Entry paths must remain within package bounds.'
+      );
+    }
+  }
+
   private buildResourceMap(resources: Record<string, unknown> | undefined, zip: AdmZip): Record<string, string> {
     const map: Record<string, string> = {};
     if (!resources) return map;
+
+    // Use a consistent extraction root for validation
+    const extractionRoot = '/scorm-package';
+
     const resList = resources['resource'];
     const list: Record<string, unknown>[] = Array.isArray(resList)
       ? resList
@@ -158,6 +184,11 @@ export class ScormImportStrategy implements ImportStrategy {
       const id = attrs?.['identifier'];
       const href = attrs?.['href'];
       if (!id || !href) continue;
+
+      // Validate that the href doesn't escape the package root
+      const resolvedPath = path.resolve(extractionRoot, href);
+      this.validatePathTraversal(resolvedPath, extractionRoot);
+
       const entry = zip.getEntry(href) ?? zip.getEntries().find((e) => e.entryName.endsWith(href));
       if (entry) {
         map[id] = entry.getData().toString('utf-8');
