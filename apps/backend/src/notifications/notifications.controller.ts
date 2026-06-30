@@ -16,6 +16,11 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get all notifications for the current user' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({
     status: 200,
     description: 'Returns user notifications',
@@ -32,6 +37,10 @@ export class NotificationsController {
 
   @Patch(':id/read')
   @ApiOperation({ summary: 'Mark a notification as read' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Notification marked as read' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @ApiResponse({ status: 404, description: 'Notification not found' })
@@ -41,6 +50,11 @@ export class NotificationsController {
 
   @Patch('read-all')
   @ApiOperation({ summary: 'Mark all notifications as read' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'All notifications marked as read' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   markAllAsRead(@Request() req) {
@@ -49,6 +63,12 @@ export class NotificationsController {
 
   @Post('subscribe')
   @ApiOperation({ summary: 'Subscribe to push notifications' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiBody({
     schema: {
       example: {
@@ -64,6 +84,12 @@ export class NotificationsController {
 
   @Delete('unsubscribe')
   @ApiOperation({ summary: 'Unsubscribe from push notifications' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiBody({ schema: { example: { endpoint: 'https://...' } } })
   @ApiResponse({ status: 200, description: 'Unsubscribed successfully' })
   unsubscribe(@Request() req, @Body('endpoint') endpoint: string) {
@@ -72,6 +98,12 @@ export class NotificationsController {
 
   @Patch('preferences')
   @ApiOperation({ summary: 'Update notification preferences' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiBody({
     schema: {
       example: {

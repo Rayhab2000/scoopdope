@@ -5,6 +5,7 @@ import { AssignmentSubmission } from './submission.entity';
 import { PeerReview } from './peer-review.entity';
 import { AssignmentsService } from './assignments.service';
 import { AssignmentsController } from './assignments.controller';
+import { AssignmentOwnershipGuard } from './assignment-ownership.guard';
 import { CoursesModule } from '../courses/courses.module';
 import { UsersModule } from '../users/users.module';
 
@@ -15,7 +16,7 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
   ],
   controllers: [AssignmentsController],
-  providers: [AssignmentsService],
+  providers: [AssignmentsService, AssignmentOwnershipGuard],
   exports: [AssignmentsService],
 })
 export class AssignmentsModule {}

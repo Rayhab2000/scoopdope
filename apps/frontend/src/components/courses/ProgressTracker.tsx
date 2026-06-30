@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import useSWR from 'swr';
 import {
   CheckCircle2,
@@ -13,7 +13,11 @@ import {
   Star,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { fetchCourseProgress, type CourseProgressPayload, type ModuleProgress } from '@/lib/progressApi';
+import {
+  fetchCourseProgress,
+  type CourseProgressPayload,
+  type ModuleProgress,
+} from '@/lib/progressApi';
 import { Card } from '@/components/ui/Card';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -27,7 +31,11 @@ export interface ProgressTrackerProps {
 
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 
-function ProgressTrackerSkeleton({ compact }: { compact: boolean }) {
+const ProgressTrackerSkeleton = memo(function ProgressTrackerSkeleton({
+  compact,
+}: {
+  compact: boolean;
+}) {
   return (
     <div
       className="animate-pulse space-y-4"
@@ -64,7 +72,7 @@ function ProgressTrackerSkeleton({ compact }: { compact: boolean }) {
       ))}
     </div>
   );
-}
+});
 
 // ── Animated progress bar ─────────────────────────────────────────────────────
 // Uses a CSS transition triggered by mounting: the bar starts at width 0 and
@@ -79,7 +87,7 @@ interface AnimatedBarProps {
   delay?: number;
 }
 
-function AnimatedBar({
+const AnimatedBar = memo(function AnimatedBar({
   value,
   colorClass = 'bg-blue-500',
   heightClass = 'h-2',
@@ -107,7 +115,7 @@ function AnimatedBar({
       />
     </div>
   );
-}
+});
 
 // ── Animated circular progress ────────────────────────────────────────────────
 
@@ -117,34 +125,22 @@ interface AnimatedRingProps {
   strokeWidth: number;
 }
 
-function AnimatedRing({ value, size, strokeWidth }: AnimatedRingProps) {
+const AnimatedRing = memo(function AnimatedRing({ value, size, strokeWidth }: AnimatedRingProps) {
   const clamped = Math.min(100, Math.max(0, value));
   const r = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
   const [offset, setOffset] = useState(circumference);
 
   useEffect(() => {
-    const id = setTimeout(
-      () => setOffset(circumference - (clamped / 100) * circumference),
-      80,
-    );
+    const id = setTimeout(() => setOffset(circumference - (clamped / 100) * circumference), 80);
     return () => clearTimeout(id);
   }, [clamped, circumference]);
 
   const colorClass =
-    clamped === 100
-      ? 'stroke-green-500'
-      : clamped >= 50
-        ? 'stroke-blue-500'
-        : 'stroke-amber-500';
+    clamped === 100 ? 'stroke-green-500' : clamped >= 50 ? 'stroke-blue-500' : 'stroke-amber-500';
 
   return (
-    <svg
-      width={size}
-      height={size}
-      className="-rotate-90"
-      aria-hidden="true"
-    >
+    <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
       <circle
         cx={size / 2}
         cy={size / 2}
@@ -166,11 +162,19 @@ function AnimatedRing({ value, size, strokeWidth }: AnimatedRingProps) {
       />
     </svg>
   );
-}
+});
 
 // ── Quiz score pill ───────────────────────────────────────────────────────────
 
-function QuizBadge({ score, maxScore, title }: { score: number; maxScore: number; title: string }) {
+const QuizBadge = memo(function QuizBadge({
+  score,
+  maxScore,
+  title,
+}: {
+  score: number;
+  maxScore: number;
+  title: string;
+}) {
   const pct = maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
   const colorClass =
     pct >= 80
@@ -188,7 +192,7 @@ function QuizBadge({ score, maxScore, title }: { score: number; maxScore: number
       {pct}%
     </span>
   );
-}
+});
 
 // ── Module row ────────────────────────────────────────────────────────────────
 
@@ -198,124 +202,167 @@ interface ModuleRowProps {
   compact: boolean;
 }
 
-function ModuleRow({ module, index, compact }: ModuleRowProps) {
-  const [open, setOpen] = useState(false);
-  const completedCount = module.lessons.filter((l) => l.completed).length;
-  const total = module.lessons.length;
+function areQuizScoresEqual(
+  previous: ModuleProgress['quizScores'],
+  next: ModuleProgress['quizScores']
+) {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
 
-  const barColor =
-    module.progressPct === 100
-      ? 'bg-green-500'
-      : module.progressPct > 0
-        ? 'bg-blue-500'
-        : 'bg-gray-300 dark:bg-gray-600';
+  return previous.every((quiz, index) => {
+    const nextQuiz = next[index];
+    return (
+      quiz.quizId === nextQuiz.quizId &&
+      quiz.score === nextQuiz.score &&
+      quiz.maxScore === nextQuiz.maxScore &&
+      quiz.title === nextQuiz.title
+    );
+  });
+}
 
-  return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
-      {/* Module header — always visible */}
-      <button
-        className="w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-controls={`module-lessons-${module.moduleId}`}
-      >
-        {/* Completion icon */}
-        <span className="shrink-0" aria-hidden="true">
-          {module.progressPct === 100 ? (
-            <CheckCircle2 className="w-5 h-5 text-green-500" />
-          ) : (
-            <Circle className="w-5 h-5 text-gray-400 dark:text-gray-500" />
-          )}
-        </span>
+function areLessonsEqual(previous: ModuleProgress['lessons'], next: ModuleProgress['lessons']) {
+  if (previous === next) return true;
+  if (previous.length !== next.length) return false;
 
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="font-medium text-sm text-gray-800 dark:text-gray-100 truncate">
-              {module.title}
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              {/* Quiz score pills */}
-              {module.quizScores.map((q) => (
-                <QuizBadge
-                  key={q.quizId}
-                  score={q.score}
-                  maxScore={q.maxScore}
-                  title={q.title}
-                />
-              ))}
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                {completedCount}/{total}
+  return previous.every((lesson, index) => {
+    const nextLesson = next[index];
+    return (
+      lesson.lessonId === nextLesson.lessonId &&
+      lesson.completed === nextLesson.completed &&
+      lesson.completedAt === nextLesson.completedAt &&
+      lesson.title === nextLesson.title
+    );
+  });
+}
+
+const ModuleRow = memo(
+  function ModuleRow({ module, index, compact }: ModuleRowProps) {
+    const [open, setOpen] = useState(false);
+    const completedCount = useMemo(
+      () => module.lessons.filter((lesson) => lesson.completed).length,
+      [module.lessons]
+    );
+    const total = module.lessons.length;
+
+    const barColor = useMemo(() => {
+      if (module.progressPct === 100) return 'bg-green-500';
+      if (module.progressPct > 0) return 'bg-blue-500';
+      return 'bg-gray-300 dark:bg-gray-600';
+    }, [module.progressPct]);
+
+    const handleToggle = useCallback(() => {
+      setOpen((value) => !value);
+    }, []);
+
+    return (
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        {/* Module header — always visible */}
+        <button
+          className="w-full flex items-center gap-3 p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500"
+          onClick={handleToggle}
+          aria-expanded={open}
+          aria-controls={`module-lessons-${module.moduleId}`}
+        >
+          {/* Completion icon */}
+          <span className="shrink-0" aria-hidden="true">
+            {module.progressPct === 100 ? (
+              <CheckCircle2 className="w-5 h-5 text-green-500" />
+            ) : (
+              <Circle className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+            )}
+          </span>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-medium text-sm text-gray-800 dark:text-gray-100 truncate">
+                {module.title}
               </span>
-              {open ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" aria-hidden="true" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" aria-hidden="true" />
-              )}
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Quiz score pills */}
+                {module.quizScores.map((q) => (
+                  <QuizBadge key={q.quizId} score={q.score} maxScore={q.maxScore} title={q.title} />
+                ))}
+                <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                  {completedCount}/{total}
+                </span>
+                {open ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" aria-hidden="true" />
+                )}
+              </div>
+            </div>
+
+            {/* Progress bar — staggered by module index */}
+            <div className="mt-2">
+              <AnimatedBar value={module.progressPct} colorClass={barColor} delay={index * 80} />
             </div>
           </div>
+        </button>
 
-          {/* Progress bar — staggered by module index */}
-          <div className="mt-2">
-            <AnimatedBar
-              value={module.progressPct}
-              colorClass={barColor}
-              delay={index * 80}
-            />
-          </div>
-        </div>
-      </button>
-
-      {/* Lesson list — collapsible */}
-      {!compact && open && (
-        <ul
-          id={`module-lessons-${module.moduleId}`}
-          className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700"
-          aria-label={`Lessons in ${module.title}`}
-        >
-          {module.lessons.map((lesson) => (
-            <li
-              key={lesson.lessonId}
-              className="flex items-center gap-3 px-4 py-3"
-            >
-              {lesson.completed ? (
-                <CheckCircle2
-                  className="w-4 h-4 text-green-500 shrink-0"
-                  aria-label="Completed"
-                />
-              ) : (
-                <Circle
-                  className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0"
-                  aria-label="Not completed"
-                />
-              )}
-              <span
-                className={`text-sm ${
-                  lesson.completed
-                    ? 'text-gray-500 dark:text-gray-400 line-through'
-                    : 'text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                {lesson.title}
-              </span>
-              {lesson.completedAt && (
-                <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
-                  {new Date(lesson.completedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
+        {/* Lesson list — collapsible */}
+        {!compact && open && (
+          <ul
+            id={`module-lessons-${module.moduleId}`}
+            className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700"
+            aria-label={`Lessons in ${module.title}`}
+          >
+            {module.lessons.map((lesson) => (
+              <li key={lesson.lessonId} className="flex items-center gap-3 px-4 py-3">
+                {lesson.completed ? (
+                  <CheckCircle2
+                    className="w-4 h-4 text-green-500 shrink-0"
+                    aria-label="Completed"
+                  />
+                ) : (
+                  <Circle
+                    className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0"
+                    aria-label="Not completed"
+                  />
+                )}
+                <span
+                  className={`text-sm ${
+                    lesson.completed
+                      ? 'text-gray-500 dark:text-gray-400 line-through'
+                      : 'text-gray-700 dark:text-gray-300'
+                  }`}
+                >
+                  {lesson.title}
                 </span>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+                {lesson.completedAt && (
+                  <span className="ml-auto text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                    {new Date(lesson.completedAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    );
+  },
+  (previous, next) => {
+    const previousModule = previous.module;
+    const nextModule = next.module;
+
+    return (
+      previous.index === next.index &&
+      previous.compact === next.compact &&
+      previousModule.moduleId === nextModule.moduleId &&
+      previousModule.title === nextModule.title &&
+      previousModule.progressPct === nextModule.progressPct &&
+      areQuizScoresEqual(previousModule.quizScores, nextModule.quizScores) &&
+      areLessonsEqual(previousModule.lessons, nextModule.lessons)
+    );
+  }
+);
 
 // ── Overall summary card ──────────────────────────────────────────────────────
 
-function OverallCard({ data }: { data: CourseProgressPayload }) {
+const OverallCard = memo(function OverallCard({ data }: { data: CourseProgressPayload }) {
   const pct = data.overallProgressPct;
 
   const statusLabel =
@@ -387,11 +434,11 @@ function OverallCard({ data }: { data: CourseProgressPayload }) {
       </div>
     </Card>
   );
-}
+});
 
 // ── Error state ───────────────────────────────────────────────────────────────
 
-function ErrorState({ onRetry }: { onRetry: () => void }) {
+const ErrorState = memo(function ErrorState({ onRetry }: { onRetry: () => void }) {
   return (
     <div className="rounded-xl border border-amber-200 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-4 text-sm space-y-2">
       <p className="font-medium text-amber-700 dark:text-amber-300">
@@ -408,7 +455,7 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
       </button>
     </div>
   );
-}
+});
 
 // ── Main component ────────────────────────────────────────────────────────────
 
@@ -424,20 +471,35 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
  * // Compact variant for lesson page sidebar
  * <ProgressTracker courseId={courseId} compact />
  */
-export function ProgressTracker({ courseId, compact = false, className = '' }: ProgressTrackerProps) {
+export function ProgressTracker({
+  courseId,
+  compact = false,
+  className = '',
+}: ProgressTrackerProps) {
   const { user } = useAuth();
+  const progressKey = useMemo<[string, string, string] | null>(
+    () => (user?.id ? ['course-progress', courseId, user.id] : null),
+    [courseId, user?.id]
+  );
+  const progressFetcher = useCallback(
+    ([, cid, uid]: [string, string, string]) => fetchCourseProgress(cid, uid),
+    []
+  );
 
   const { data, error, isLoading, mutate } = useSWR<CourseProgressPayload>(
-    user?.id ? ['course-progress', courseId, user.id] : null,
-    ([, cid, uid]: [string, string, string]) => fetchCourseProgress(cid, uid),
+    progressKey,
+    progressFetcher,
     {
       // Keep stale data visible while refreshing — no skeleton flash
       keepPreviousData: true,
       // Progress doesn't need aggressive polling; refresh on focus is enough
       revalidateOnFocus: true,
       shouldRetryOnError: false,
-    },
+    }
   );
+  const handleRetry = useCallback(() => {
+    void mutate();
+  }, [mutate]);
 
   if (!user) return null;
 
@@ -446,7 +508,7 @@ export function ProgressTracker({ courseId, compact = false, className = '' }: P
   }
 
   if (error && !data) {
-    return <ErrorState onRetry={() => mutate()} />;
+    return <ErrorState onRetry={handleRetry} />;
   }
 
   if (!data) return null;
@@ -463,12 +525,7 @@ export function ProgressTracker({ courseId, compact = false, className = '' }: P
             Modules
           </h3>
           {data.modules.map((mod, i) => (
-            <ModuleRow
-              key={mod.moduleId}
-              module={mod}
-              index={i}
-              compact={compact}
-            />
+            <ModuleRow key={mod.moduleId} module={mod} index={i} compact={compact} />
           ))}
         </div>
       )}
@@ -477,10 +534,7 @@ export function ProgressTracker({ courseId, compact = false, className = '' }: P
       {error && data && (
         <p className="text-xs text-amber-600 dark:text-amber-400 text-center">
           Showing cached progress —{' '}
-          <button
-            onClick={() => mutate()}
-            className="underline hover:no-underline focus:outline-none"
-          >
+          <button onClick={handleRetry} className="underline hover:no-underline focus:outline-none">
             retry
           </button>
         </p>

@@ -28,6 +28,11 @@ export class InstructorApplicationsController {
 
   @Post()
   @ApiOperation({ summary: 'Submit an instructor application' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 201, description: 'Application submitted' })
   @ApiResponse({ status: 400, description: 'Agreement not accepted or validation error' })
   @ApiResponse({ status: 409, description: 'Pending application already exists' })
@@ -40,6 +45,12 @@ export class InstructorApplicationsController {
 
   @Get('me')
   @ApiOperation({ summary: 'Get my instructor application status' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Returns the most recent application' })
   getMyApplication(@Request() req: { user: { id: string } }) {
     return this.service.findMyApplication(req.user.id);
@@ -49,6 +60,12 @@ export class InstructorApplicationsController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiOperation({ summary: 'List all instructor applications (admin)' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Returns list of applications' })
   findAll(@Query('status') status?: string) {
     return this.service.findAll(status);
@@ -58,6 +75,10 @@ export class InstructorApplicationsController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiOperation({ summary: 'Approve or reject an instructor application (admin)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Application reviewed; user role updated if approved' })
   @ApiResponse({ status: 400, description: 'Already reviewed' })
   @ApiResponse({ status: 404, description: 'Application not found' })

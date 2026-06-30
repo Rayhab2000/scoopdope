@@ -3,7 +3,7 @@ import {
   Req, UseGuards, HttpCode,
 } from '@nestjs/common';
 import { Request } from 'express';
-import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { PaymentsService } from './payments.service';
@@ -22,6 +22,12 @@ export class PaymentsController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a Stripe PaymentIntent for a course purchase' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   createPaymentIntent(
     @Body() dto: CreatePaymentIntentDto,
     @CurrentUser() user: { id: string },
@@ -31,6 +37,12 @@ export class PaymentsController {
 
   @Get('price/:courseId')
   @ApiOperation({ summary: 'Get course price in a specific currency' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   getPrice(
     @Param('courseId') courseId: string,
     @Headers('accept-language') acceptLanguage: string,
@@ -41,6 +53,12 @@ export class PaymentsController {
 
   @Get('currencies')
   @ApiOperation({ summary: 'List supported currencies' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   getSupportedCurrencies() {
     return { currencies: SUPPORTED_CURRENCIES };
   }
@@ -48,6 +66,12 @@ export class PaymentsController {
   @Post('webhook')
   @HttpCode(200)
   @ApiOperation({ summary: 'Stripe webhook endpoint' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async handleWebhook(
     @Headers('stripe-signature') signature: string,
     @Req() req: RawBodyRequest<Request>,

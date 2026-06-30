@@ -11,6 +11,12 @@ export class KycController {
 
   @Get('status/:stellarPublicKey')
   @ApiOperation({ summary: 'SEP-0012: get KYC status for a Stellar account' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Returns KYC status record' })
   getStatus(@Param('stellarPublicKey') stellarPublicKey: string) {
     return this.kycService.getStatus(stellarPublicKey);
@@ -18,6 +24,12 @@ export class KycController {
 
   @Put('customer')
   @ApiOperation({ summary: 'SEP-0012: submit or update KYC fields' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'KYC submission accepted' })
   upsertCustomer(@Body() body: { stellarPublicKey: string; [key: string]: string }) {
     const { stellarPublicKey, ...fields } = body;
@@ -28,6 +40,12 @@ export class KycController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit identity documents for KYC verification' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 201, description: 'Documents submitted, KYC status set to pending' })
   submitDocuments(@Body() dto: SubmitKycDocumentsDto) {
     return this.kycService.submitDocuments(dto);
@@ -36,6 +54,12 @@ export class KycController {
   /** Webhook called by the KYC provider when verification status changes */
   @Post('webhook')
   @ApiOperation({ summary: 'KYC provider webhook — status update callback' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async webhook(@Body() payload: any) {
     await this.kycService.handleWebhook(payload);
     return { received: true };
