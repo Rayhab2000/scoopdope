@@ -257,9 +257,19 @@ GitHub Actions workflows in `.github/workflows/` run on every push and PR:
 
 ## Contributing
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributing guide, including:
+
+- Development environment setup
+- Branching conventions (`feature/`, `fix/`, `chore/`, `docs/`, `test/`)
+- Commit message format (Conventional Commits)
+- How to run backend, frontend, and contract test suites
+- Pull-request review process
+
+Quick summary:
+
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit with clear messages
+3. Commit with [Conventional Commits](https://www.conventionalcommits.org/) messages
 4. Ensure all CI checks pass
 5. Open a pull request with a detailed description
 
