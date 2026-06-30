@@ -31,6 +31,7 @@ scoopdope/
 │   └── shared/            # RBAC & shared utilities (Rust/Soroban)
 ├── scripts/               # Build and deploy scripts
 ├── docs/                  # Extended documentation
+│   ├── api-versioning.md
 │   ├── api-rate-limiting.md
 │   ├── community-moderation.md
 │   ├── catastrophic-recovery.md
@@ -240,6 +241,9 @@ All API endpoints are prefixed with `/v1` for versioning.
 **Interactive API Documentation:**
 - Local: `http://localhost:3000/api/docs`
 - Production: [https://nonso-eze.github.io/scoopdope/](https://nonso-eze.github.io/scoopdope/)
+
+**Versioning Policy:**
+All routes use the `/v1` prefix. For details on breaking-change rules, the deprecation timeline (90-day sunset window), header-based version negotiation, and migration examples, see [`docs/api-versioning.md`](./docs/api-versioning.md).
 
 ---
 
