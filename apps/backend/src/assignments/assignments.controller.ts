@@ -14,6 +14,7 @@ import { AssignmentsService } from './assignments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { AssignmentOwnershipGuard } from './assignment-ownership.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { RubricScore } from './peer-review.entity';
@@ -157,7 +158,7 @@ export class AssignmentsController {
   }
 
   @Patch('submissions/:id/override')
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard, AssignmentOwnershipGuard)
   @Roles('admin', 'instructor')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Instructor override for submission grade' })
