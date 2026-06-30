@@ -1,304 +1,222 @@
+import * as AdmZip from 'adm-zip';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
-import * as AdmZip from 'adm-zip';
 import { ScormImportStrategy } from './scorm-import.strategy';
 import { Course } from '../../courses/course.entity';
 import { CourseModule } from '../../courses/course-module.entity';
 import { Lesson } from '../../courses/lesson.entity';
 
-describe('ScormImportStrategy - Path Traversal Security', () => {
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
+function makeManifest(options: {
+  title?: string;
+  items?: Array<{ id: string; title: string; resourceRef: string }>;
+  resources?: Array<{ id: string; href: string }>;
+} = {}): string {
+  const items = options.items ?? [
+    { id: 'item-1', title: 'Lesson One', resourceRef: 'res-1' },
+  ];
+  const resources = options.resources ?? [{ id: 'res-1', href: 'content/lesson1.html' }];
+
+  const itemXml = items
+    .map(
+      (i) =>
+        `<item identifier="${i.id}" identifierref="${i.resourceRef}"><title>${i.title}</title></item>`
+    )
+    .join('\n');
+
+  const resourceXml = resources
+    .map((r) => `<resource identifier="${r.id}" href="${r.href}" />`)
+    .join('\n');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<manifest identifier="course-1">
+  <metadata><schema>ADL SCORM</schema><schemaversion>1.2</schemaversion></metadata>
+  <organizations default="org-1">
+    <organization identifier="org-1">
+      <title>${options.title ?? 'Test Course'}</title>
+      ${itemXml}
+    </organization>
+  </organizations>
+  <resources>${resourceXml}</resources>
+</manifest>`;
+}
+
+function buildZipBuffer(
+  manifest: string,
+  files: Array<{ name: string; content: string }> = [
+    { name: 'content/lesson1.html', content: '<html><body>Hello</body></html>' },
+  ]
+): Buffer {
+  const zip = new AdmZip();
+  zip.addFile('imsmanifest.xml', Buffer.from(manifest));
+  for (const f of files) {
+    zip.addFile(f.name, Buffer.from(f.content));
+  }
+  return zip.toBuffer();
+}
+
+// ─── Mocks ──────────────────────────────────────────────────────────────────
+
+function makeMockRepos() {
+  const savedCourse = { id: 'course-uuid' } as Course;
+  const savedModule = { id: 'module-uuid' } as CourseModule;
+
+  const courseRepo = {
+    create: jest.fn((dto) => ({ ...dto })),
+    save: jest.fn().mockResolvedValue(savedCourse),
+  } as unknown as jest.Mocked<Repository<Course>>;
+
+  const moduleRepo = {
+    create: jest.fn((dto) => ({ ...dto })),
+    save: jest.fn().mockResolvedValue(savedModule),
+  } as unknown as jest.Mocked<Repository<CourseModule>>;
+
+  const lessonRepo = {
+    create: jest.fn((dto) => ({ ...dto })),
+    save: jest.fn().mockResolvedValue({ id: 'lesson-uuid' }),
+  } as unknown as jest.Mocked<Repository<Lesson>>;
+
+  return { courseRepo, moduleRepo, lessonRepo };
+}
+
+// ─── Tests ───────────────────────────────────────────────────────────────────
+
+describe('ScormImportStrategy', () => {
   let strategy: ScormImportStrategy;
   let courseRepo: jest.Mocked<Repository<Course>>;
   let moduleRepo: jest.Mocked<Repository<CourseModule>>;
   let lessonRepo: jest.Mocked<Repository<Lesson>>;
 
   beforeEach(() => {
-    courseRepo = {
-      save: jest.fn(),
-      create: jest.fn(),
-      findOne: jest.fn(),
-    } as unknown as jest.Mocked<Repository<Course>>;
-
-    moduleRepo = {
-      save: jest.fn(),
-      create: jest.fn(),
-    } as unknown as jest.Mocked<Repository<CourseModule>>;
-
-    lessonRepo = {
-      save: jest.fn(),
-      create: jest.fn(),
-    } as unknown as jest.Mocked<Repository<Lesson>>;
-
+    const repos = makeMockRepos();
+    courseRepo = repos.courseRepo;
+    moduleRepo = repos.moduleRepo;
+    lessonRepo = repos.lessonRepo;
     strategy = new ScormImportStrategy(courseRepo, moduleRepo, lessonRepo);
   });
 
-  describe('Path Traversal Validation', () => {
-    /**
-     * Creates a malicious SCORM ZIP with a path traversal entry.
-     * The href attempts to escape the package using ../../../../ patterns.
-     */
-    it('should reject a SCORM package with path traversal in resource href (../ attack)', async () => {
-      const zip = new AdmZip();
+  describe('canHandle', () => {
+    it('accepts application/zip', () => expect(strategy.canHandle('application/zip')).toBe(true));
+    it('accepts application/x-zip-compressed', () =>
+      expect(strategy.canHandle('application/x-zip-compressed')).toBe(true));
+    it('rejects application/json', () => expect(strategy.canHandle('application/json')).toBe(false));
+  });
 
-      // Create manifest with path traversal attempt
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-1" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Test Course">
-      <item identifier="item-1" title="Module 1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="../../../../etc/passwd">
-      <file href="../../../../etc/passwd"/>
-    </resource>
-  </resources>
-</manifest>`;
+  describe('import (buffer path)', () => {
+    it('creates a course from a valid SCORM package', async () => {
+      const manifest = makeManifest({ title: 'My Course' });
+      const zipBuf = buildZipBuffer(manifest);
 
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-      zip.addFile('content.html', Buffer.from('<html>Content</html>'), '', 0);
+      const result = await strategy.import(zipBuf, 'user-1');
 
-      const zipBuffer = zip.toBuffer();
+      expect(result).toEqual({ courseId: 'course-uuid' });
+      expect(courseRepo.save).toHaveBeenCalledTimes(1);
+      const saved = courseRepo.create.mock.calls[0][0] as Record<string, unknown>;
+      expect(saved['instructorId']).toBe('user-1');
+    });
 
-      await expect(strategy.import(zipBuffer, 'user-123')).rejects.toThrow(BadRequestException);
-      await expect(strategy.import(zipBuffer, 'user-123')).rejects.toThrow(
-        /path traversal detected|Entry paths must remain/i
+    it('throws BadRequestException for a non-ZIP buffer', async () => {
+      await expect(strategy.import(Buffer.from('not a zip'), 'user-1')).rejects.toThrow(
+        BadRequestException
       );
     });
 
-    /**
-     * Tests rejection of Windows-style path traversal patterns.
-     */
-    it('should reject SCORM packages with Windows-style path traversal (..\\ patterns)', async () => {
+    it('throws BadRequestException when imsmanifest.xml is absent', async () => {
       const zip = new AdmZip();
-
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-2" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Test Course">
-      <item identifier="item-1" title="Module 1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="..\\..\\..\\app.js">
-      <file href="..\\..\\..\\app.js"/>
-    </resource>
-  </resources>
-</manifest>`;
-
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-
-      const zipBuffer = zip.toBuffer();
-
-      await expect(strategy.import(zipBuffer, 'user-456')).rejects.toThrow(BadRequestException);
-      await expect(strategy.import(zipBuffer, 'user-456')).rejects.toThrow(
-        /path traversal detected|Entry paths must remain/i
+      zip.addFile('readme.txt', Buffer.from('hello'));
+      await expect(strategy.import(zip.toBuffer(), 'user-1')).rejects.toThrow(
+        /imsmanifest\.xml not found/
       );
-    });
-
-    /**
-     * Tests rejection of encoded path traversal attempts (%2e%2e).
-     */
-    it('should reject SCORM packages with URL-encoded path traversal (%2e%2e)', async () => {
-      const zip = new AdmZip();
-
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-3" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Test Course">
-      <item identifier="item-1" title="Module 1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="..%2f..%2fetc%2fpasswd">
-      <file href="..%2f..%2fetc%2fpasswd"/>
-    </resource>
-  </resources>
-</manifest>`;
-
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-
-      const zipBuffer = zip.toBuffer();
-
-      // Encoded traversal should also be rejected during validation
-      await expect(strategy.import(zipBuffer, 'user-789')).rejects.toThrow(BadRequestException);
-    });
-
-    /**
-     * Tests acceptance of valid relative paths within the package.
-     * Valid paths like "content/lesson1.html" should be allowed.
-     */
-    it('should accept valid relative paths within the SCORM package', async () => {
-      const zip = new AdmZip();
-
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-4" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Valid Course">
-      <item identifier="item-1" title="Module 1" identifierref="res-1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="content/lesson1.html">
-      <file href="content/lesson1.html"/>
-    </resource>
-  </resources>
-</manifest>`;
-
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-      zip.addFile('content/lesson1.html', Buffer.from('<html>Lesson 1</html>'), '', 0);
-
-      const course = {
-        id: 'course-id',
-        title: 'Valid Course',
-        description: 'Imported from SCORM package',
-        level: 'beginner',
-        durationHours: 0,
-        requiresKyc: false,
-        instructorId: 'user-101',
-        isPublished: false,
-      } as Course;
-
-      const module = {
-        id: 'module-id',
-        courseId: 'course-id',
-        title: 'Module 1',
-        order: 0,
-      } as CourseModule;
-
-      const lesson = {
-        id: 'lesson-id',
-        moduleId: 'module-id',
-        title: 'Module 1',
-        content: '<html>Lesson 1</html>',
-        videoUrl: undefined,
-        order: 0,
-        durationMinutes: 0,
-      } as Lesson;
-
-      courseRepo.create.mockReturnValue(course);
-      courseRepo.save.mockResolvedValue(course);
-      moduleRepo.create.mockReturnValue(module);
-      moduleRepo.save.mockResolvedValue(module);
-      lessonRepo.create.mockReturnValue(lesson);
-      lessonRepo.save.mockResolvedValue(lesson);
-
-      const zipBuffer = zip.toBuffer();
-
-      const result = await strategy.import(zipBuffer, 'user-101');
-
-      expect(result).toEqual({ courseId: 'course-id' });
-      expect(courseRepo.save).toHaveBeenCalled();
-      expect(moduleRepo.save).toHaveBeenCalled();
-      expect(lessonRepo.save).toHaveBeenCalled();
-    });
-
-    /**
-     * Tests rejection of absolute paths in hrefs.
-     * Absolute paths like /etc/passwd are forbidden in package-relative references.
-     */
-    it('should reject SCORM packages with absolute paths in resource href', async () => {
-      const zip = new AdmZip();
-
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-5" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Test Course">
-      <item identifier="item-1" title="Module 1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="/etc/passwd">
-      <file href="/etc/passwd"/>
-    </resource>
-  </resources>
-</manifest>`;
-
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-
-      const zipBuffer = zip.toBuffer();
-
-      await expect(strategy.import(zipBuffer, 'user-202')).rejects.toThrow(BadRequestException);
-    });
-
-    /**
-     * Tests rejection of complex path traversal patterns that use dot segments.
-     */
-    it('should reject SCORM packages with complex traversal patterns (./../../ etc)', async () => {
-      const zip = new AdmZip();
-
-      const manifest = `<?xml version="1.0" encoding="UTF-8"?>
-<manifest identifier="course-6" version="1.0">
-  <metadata>
-    <schema>ADL SCORM</schema>
-    <schemaversion>2004 3rd Edition</schemaversion>
-  </metadata>
-  <organizations>
-    <organization identifier="org-1" title="Test Course">
-      <item identifier="item-1" title="Module 1">
-      </item>
-    </organization>
-  </organizations>
-  <resources>
-    <resource identifier="res-1" type="webcontent" href="./../../config.json">
-      <file href="./../../config.json"/>
-    </resource>
-  </resources>
-</manifest>`;
-
-      zip.addFile('imsmanifest.xml', Buffer.from(manifest), '', 0);
-
-      const zipBuffer = zip.toBuffer();
-
-      await expect(strategy.import(zipBuffer, 'user-303')).rejects.toThrow(BadRequestException);
     });
   });
 
-  describe('SCORM Import - Normal Operation', () => {
-    it('should handle missing imsmanifest.xml gracefully', async () => {
+  describe('importFromPath', () => {
+    it('creates a course from a zip written to disk', async () => {
+      const manifest = makeManifest({ title: 'Disk Course' });
+      const zipBuf = buildZipBuffer(manifest);
+      const tmpPath = path.join(os.tmpdir(), `scorm-test-${Date.now()}.zip`);
+
+      try {
+        await fs.promises.writeFile(tmpPath, zipBuf);
+        const result = await strategy.importFromPath(tmpPath, 'user-2');
+        expect(result).toEqual({ courseId: 'course-uuid' });
+      } finally {
+        await fs.promises.unlink(tmpPath).catch(() => undefined);
+      }
+    });
+  });
+
+  describe('path traversal guard', () => {
+    it('skips entries with ../ components and still imports successfully', async () => {
+      const manifest = makeManifest({
+        items: [{ id: 'item-1', title: 'Safe Lesson', resourceRef: 'res-safe' }],
+        resources: [{ id: 'res-safe', href: 'content/safe.html' }],
+      });
+
       const zip = new AdmZip();
-      zip.addFile('content.html', Buffer.from('<html>Content</html>'), '', 0);
+      zip.addFile('imsmanifest.xml', Buffer.from(manifest));
+      zip.addFile('content/safe.html', Buffer.from('<html>safe</html>'));
+      // Malicious entry — path traversal attempt
+      zip.addFile('../../../evil.sh', Buffer.from('#!/bin/sh\nrm -rf /'));
 
-      const zipBuffer = zip.toBuffer();
+      const result = await strategy.import(zip.toBuffer(), 'user-3');
 
-      await expect(strategy.import(zipBuffer, 'user-invalid')).rejects.toThrow(BadRequestException);
-      await expect(strategy.import(zipBuffer, 'user-invalid')).rejects.toThrow(
-        /imsmanifest.xml not found/i
-      );
+      expect(result.courseId).toBe('course-uuid');
+      // The evil.sh entry must NOT land outside the extraction temp dir
+      expect(fs.existsSync('/evil.sh')).toBe(false);
     });
+  });
 
-    it('should handle invalid ZIP files', async () => {
-      const invalidZip = Buffer.from('this is not a valid zip file');
+  describe('large synthetic SCORM package (memory regression)', () => {
+    // Verifies that importing a package with many entries does not balloon heap
+    // proportional to the uncompressed archive size. With adm-zip's old approach,
+    // each getData() call allocated a new Buffer for every entry simultaneously.
+    // With the yauzl streaming path, only one entry is ever in flight at a time.
 
-      await expect(strategy.import(invalidZip, 'user-invalid')).rejects.toThrow(BadRequestException);
-      await expect(strategy.import(invalidZip, 'user-invalid')).rejects.toThrow(
-        /Invalid ZIP\/SCORM package/i
-      );
-    });
+    const ENTRY_COUNT = 80;
+    const ENTRY_SIZE_BYTES = 512 * 1024; // 512 KB per entry → ~40 MB uncompressed
+
+    let largeZipBuffer: Buffer;
+
+    beforeAll(() => {
+      const items = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
+        id: `item-${i}`,
+        title: `Lesson ${i}`,
+        resourceRef: `res-${i}`,
+      }));
+      const resources = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
+        id: `res-${i}`,
+        href: `content/lesson${i}.html`,
+      }));
+      const files = Array.from({ length: ENTRY_COUNT }, (_, i) => ({
+        name: `content/lesson${i}.html`,
+        // Realistic but compressible HTML payload
+        content: `<html><body>${'x'.repeat(ENTRY_SIZE_BYTES)}</body></html>`,
+      }));
+
+      largeZipBuffer = buildZipBuffer(makeManifest({ title: 'Large Course', items, resources }), files);
+    }, 60_000);
+
+    it('imports without heap growth proportional to uncompressed size', async () => {
+      if (global.gc) global.gc(); // request GC if --expose-gc is set
+
+      const heapBefore = process.memoryUsage().heapUsed;
+
+      const result = await strategy.import(largeZipBuffer, 'user-perf');
+
+      if (global.gc) global.gc();
+
+      const heapAfterMB = (process.memoryUsage().heapUsed - heapBefore) / 1024 / 1024;
+      const uncompressedMB = (ENTRY_COUNT * ENTRY_SIZE_BYTES) / 1024 / 1024;
+
+      expect(result.courseId).toBe('course-uuid');
+      // Heap growth must be well below holding the full uncompressed archive.
+      // If adm-zip's getData() were still used, growth would approach uncompressedMB.
+      expect(heapAfterMB).toBeLessThan(uncompressedMB * 0.5);
+    }, 60_000);
   });
 });

@@ -69,6 +69,14 @@ export class ImportExportService {
     return this.importWithStrategy(buffer, 'application/zip', instructorId);
   }
 
+  async importScormFromPath(filePath: string, instructorId: string): Promise<{ courseId: string }> {
+    const strategy = this.getStrategy('application/zip');
+    if (!strategy.importFromPath) {
+      throw new Error('SCORM strategy does not implement path-based import');
+    }
+    return strategy.importFromPath(filePath, instructorId);
+  }
+
   async startBulkImport(
     buffers: { name: string; data: Buffer }[],
     instructorId: string

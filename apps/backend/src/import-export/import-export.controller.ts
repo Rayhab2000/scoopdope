@@ -15,12 +15,24 @@ import {
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Response } from 'express';
+import { diskStorage } from 'multer';
+import * as os from 'os';
+import * as crypto from 'crypto';
+import * as fs from 'fs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { ImportExportService } from './import-export.service';
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+
+// Multer disk-storage config for SCORM uploads: the ZIP is written straight to
+// the OS temp dir so it never occupies Node.js heap space.
+const scormDiskStorage = diskStorage({
+  destination: os.tmpdir(),
+  filename: (_req: unknown, _file: unknown, cb: (err: Error | null, name: string) => void) =>
+    cb(null, `scorm-upload-${crypto.randomBytes(8).toString('hex')}.zip`),
+});
 
 @ApiTags('import-export')
 @ApiBearerAuth()
@@ -94,13 +106,18 @@ export class ImportExportController {
   @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } } })
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE } }))
-  importScorm(
+  @UseInterceptors(FileInterceptor('file', { storage: scormDiskStorage, limits: { fileSize: MAX_FILE_SIZE } }))
+  async importScorm(
     @UploadedFile() file: Express.Multer.File,
     @Request() req: { user: { id: string } }
   ) {
     if (!file) throw new BadRequestException('No file uploaded');
-    return this.service.importScorm(file.buffer, req.user.id);
+    // file.path is set by disk storage; clean it up whether the import succeeds or fails
+    try {
+      return await this.service.importScormFromPath(file.path, req.user.id);
+    } finally {
+      await fs.promises.unlink(file.path).catch(() => undefined);
+    }
   }
 
   @Post('import/bulk')
