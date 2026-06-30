@@ -1,5 +1,5 @@
 import { Controller, Get, Patch, Query, Body, UseGuards, Request } from '@nestjs/common';
-import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiBearerAuth, ApiOperation, ApiQuery, ApiResponse } from '@nestjs/swagger';
 import { IsBoolean, IsOptional } from 'class-validator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { EmailService } from './email.service';
@@ -18,6 +18,12 @@ export class EmailController {
 
   @Get('unsubscribe')
   @ApiOperation({ summary: 'Unsubscribe from all emails via token' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiQuery({ name: 'token', required: true })
   async unsubscribe(@Query('token') token: string) {
     await this.service.unsubscribeByToken(token);

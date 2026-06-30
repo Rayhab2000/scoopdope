@@ -5,6 +5,7 @@ import { Roles } from '../auth/roles.decorator';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { CdnService } from './cdn.service';
 import { ContentType } from './cdn-asset.entity';
+import { ApiResponse } from '@nestjs/swagger';
 
 @Controller('v1/cdn')
 @UseGuards(JwtAuthGuard)
@@ -14,6 +15,12 @@ export class CdnController {
   @Post('upload')
   @UseGuards(RolesGuard)
   @Roles('admin', 'instructor')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async uploadAsset(
     @Body() data: { lessonId?: string; fileName?: string; originalName?: string; mimeType?: string; contentType?: ContentType; fileSize?: number; isPrivate?: boolean },
     @CurrentUser() user: { id: string },
@@ -31,6 +38,12 @@ export class CdnController {
   }
 
   @Get(':assetId/signed-url')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getSignedUrl(
     @Param('assetId') assetId: string,
     @Query('expirationMinutes') expirationMinutes?: string,
@@ -52,16 +65,34 @@ export class CdnController {
   @Post(':assetId/invalidate')
   @UseGuards(RolesGuard)
   @Roles('admin')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async invalidateCache(@Param('assetId') assetId: string) {
     return this.cdnService.invalidateCache(assetId);
   }
 
   @Get('lesson/:lessonId')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getLessonAssets(@Param('lessonId') lessonId: string) {
     return this.cdnService.getLessonAssets(lessonId);
   }
 
   @Get(':assetId')
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getAsset(@Param('assetId') assetId: string) {
     return this.cdnService.getAsset(assetId);
   }

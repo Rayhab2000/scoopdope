@@ -41,7 +41,11 @@ export class CertificatesController {
   @ApiParam({ name: 'courseId', description: 'UUID of the completed course' })
   @ApiResponse({ status: 201, description: 'Certificate issued successfully' })
   @ApiResponse({ status: 400, description: 'Enrollment not found or course not completed' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
   @ApiResponse({ status: 409, description: 'Certificate already issued' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
   @ApiResponse({ status: 500, description: 'On-chain minting failed' })
   async issueCertificate(
     @Param('userId') userId: string,
@@ -107,7 +111,12 @@ export class CertificatesController {
       },
     },
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Certificate not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async verify(@Param('id') id: string): Promise<CertificateVerificationResult> {
     return this.certificatesService.verifyById(id);
   }
@@ -119,7 +128,12 @@ export class CertificatesController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all certificates for a user' })
   @ApiResponse({ status: 200, description: 'List of certificates' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getUserCertificates(@Param('userId') userId: string) {
     return this.certificatesService.getUserCertificates(userId);
   }
@@ -127,7 +141,12 @@ export class CertificatesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a certificate by ID' })
   @ApiResponse({ status: 200, description: 'Certificate record' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Certificate not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async getCertificate(@Param('id') id: string) {
     return this.certificatesService.getCertificate(id);
   }
@@ -137,6 +156,12 @@ export class CertificatesController {
   @Post('verify')
   @ApiOperation({ summary: 'Verify a certificate by its SHA-256 hash (legacy)' })
   @ApiResponse({ status: 200, description: 'Verification result' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async verifyCertificate(@Body() body: { certificateHash: string }) {
     return this.certificatesService.verifyCertificate(body.certificateHash);
   }
@@ -149,8 +174,12 @@ export class CertificatesController {
   @Header('Content-Type', 'application/pdf')
   @ApiOperation({ summary: 'Download a certificate as a branded PDF with QR code' })
   @ApiResponse({ status: 200, description: 'PDF certificate binary' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
   @ApiResponse({ status: 404, description: 'Certificate not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   async downloadPdf(@Param('id') id: string): Promise<StreamableFile> {
     const certificate = await this.certificatesService.getCertificateWithRelations(id);
     const baseUrl = this.configService.get<string>('frontend.url') ?? 'http://localhost:3000';
