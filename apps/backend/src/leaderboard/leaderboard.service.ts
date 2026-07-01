@@ -15,6 +15,15 @@ type LeaderboardEntry = {
   balance: string;
 };
 
+export type StreakLeaderboardEntry = {
+  rank: number;
+  userId: string;
+  username: string | null;
+  currentStreak: number;
+  longestStreak: number;
+  lastActivityAt: Date | null;
+};
+
 @Injectable()
 export class LeaderboardService {
   private readonly cacheKey = 'leaderboard:top50';
@@ -80,6 +89,47 @@ export class LeaderboardService {
       .slice(0, 50);
 
     await this.cacheManager.set(this.cacheKey, leaderboard, this.cacheTtlMs);
+    return leaderboard;
+  }
+
+  /**
+   * Returns the top 50 users ranked by their current learning streak.
+   * Ties are broken by longest-streak descending, then by most-recent
+   * activity, so active learners always appear first.
+   *
+   * Results are cached for 60 seconds to reduce DB load.
+   */
+  async getStreakLeaderboard(): Promise<StreakLeaderboardEntry[]> {
+    const cacheKey = 'leaderboard:streaks:top50';
+
+    const cached = await this.cacheManager.get<StreakLeaderboardEntry[]>(cacheKey);
+    if (cached) {
+      this.metricsService.incrementCacheHit('leaderboard_streaks');
+      return cached;
+    }
+    this.metricsService.incrementCacheMiss('leaderboard_streaks');
+
+    // Fetch users with at least 1 active streak day, excluding soft-deleted accounts.
+    const users = await this.userRepo
+      .createQueryBuilder('user')
+      .where('user.currentStreak > 0')
+      .andWhere('user.deletedAt IS NULL')
+      .orderBy('user.currentStreak', 'DESC')
+      .addOrderBy('user.longestStreak', 'DESC')
+      .addOrderBy('user.lastActivityAt', 'DESC')
+      .take(50)
+      .getMany();
+
+    const leaderboard: StreakLeaderboardEntry[] = users.map((user, index) => ({
+      rank: index + 1,
+      userId: user.id,
+      username: user.username ?? null,
+      currentStreak: user.currentStreak,
+      longestStreak: user.longestStreak,
+      lastActivityAt: user.lastActivityAt ?? null,
+    }));
+
+    await this.cacheManager.set(cacheKey, leaderboard, this.cacheTtlMs);
     return leaderboard;
   }
 }

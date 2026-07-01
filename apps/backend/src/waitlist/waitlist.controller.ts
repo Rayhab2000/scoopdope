@@ -24,6 +24,11 @@ export class WaitlistController {
 
   @Post('courses/:id/waitlist')
   @ApiOperation({ summary: 'Join the waitlist for a full course' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 201, description: 'Joined waitlist successfully' })
   @ApiResponse({ status: 400, description: 'Course has available spots or not available' })
   @ApiResponse({ status: 409, description: 'Already enrolled or on waitlist' })
@@ -36,6 +41,11 @@ export class WaitlistController {
 
   @Delete('courses/:id/waitlist')
   @ApiOperation({ summary: 'Leave the waitlist for a course' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Left waitlist successfully' })
   @ApiResponse({ status: 404, description: 'Not on waitlist' })
   leave(
@@ -47,6 +57,12 @@ export class WaitlistController {
 
   @Get('courses/:id/waitlist/position')
   @ApiOperation({ summary: "Get the current user's waitlist position for a course" })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Position (null if not on waitlist)' })
   async getPosition(
     @Param('id') courseId: string,
@@ -59,6 +75,12 @@ export class WaitlistController {
 
   @Get('users/me/waitlist')
   @ApiOperation({ summary: "Get all courses the current user is waitlisted for" })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'List of waitlist entries with course details' })
   getMyWaitlist(@Request() req: { user: { id: string } }) {
     return this.waitlistService.listForUser(req.user.id);
@@ -70,6 +92,12 @@ export class WaitlistController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiOperation({ summary: 'Admin: list all waitlist entries for a course' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Ordered list of waitlist entries' })
   adminList(@Param('id') courseId: string) {
     return this.waitlistService.listForCourse(courseId);
@@ -79,6 +107,12 @@ export class WaitlistController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiOperation({ summary: 'Admin: remove a user from a course waitlist' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'User removed from waitlist' })
   adminRemove(
     @Param('courseId') courseId: string,
@@ -91,6 +125,12 @@ export class WaitlistController {
   @UseGuards(RolesGuard)
   @Roles('admin')
   @ApiOperation({ summary: 'Admin: manually trigger promotion of next waitlisted student' })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Next student promoted (if spot available)' })
   adminPromote(@Param('id') courseId: string) {
     return this.waitlistService.promoteNext(courseId);

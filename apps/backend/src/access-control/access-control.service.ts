@@ -28,25 +28,36 @@ export class AccessControlService {
     return this.accessRepo.save(access);
   }
 
+  /**
+   * Evaluates whether a user may access a course using the precedence order:
+   * explicit revoke > time-limited grant > subscription tier > default deny.
+   *
+   * An inactive access record is treated as an explicit revoke, a missing or
+   * expired grant denies access, and a valid subscription grant is the last
+   * positive signal before the service falls back to denial.
+   */
   async checkAccess(
     courseId: string,
     userId: string,
     ipAddress?: string,
   ): Promise<{ allowed: boolean; reason?: string }> {
     const access = await this.accessRepo.findOne({
-      where: { courseId, userId, isActive: true },
+      where: { courseId, userId },
     });
 
-    if (!access) {
-      await this.logAccess(courseId, userId, 'access_denied', ipAddress, false, 'No access granted');
-      return { allowed: false, reason: 'No access granted' };
+    // Explicit revoke wins first. An inactive entity is treated as a deliberate denial.
+    if (!access || !access.isActive) {
+      await this.logAccess(courseId, userId, 'access_denied', ipAddress, false, 'Access revoked');
+      return { allowed: false, reason: 'Access revoked' };
     }
 
+    // Time-limited grants are validated before the broader subscription tier check.
     if (access.subscriptionExpiryDate && new Date() > access.subscriptionExpiryDate) {
       await this.logAccess(courseId, userId, 'access_denied', ipAddress, false, 'Subscription expired');
       return { allowed: false, reason: 'Subscription expired' };
     }
 
+    // IP restrictions are checked after the grant state has been validated.
     if (access.allowedIpAddresses && access.allowedIpAddresses.length > 0) {
       if (!access.allowedIpAddresses.includes(ipAddress)) {
         await this.logAccess(courseId, userId, 'access_denied', ipAddress, false, 'IP not allowed');
@@ -58,6 +69,12 @@ export class AccessControlService {
     return { allowed: true };
   }
 
+  /**
+   * Revokes a user’s access by deactivating the access-control record.
+   *
+   * Revocation is the highest-precedence denial signal and should block future
+   * checks even if a time-limited or subscription-based grant exists elsewhere.
+   */
   async revokeAccess(courseId: string, userId: string) {
     return this.accessRepo.update(
       { courseId, userId },
@@ -72,6 +89,13 @@ export class AccessControlService {
     );
   }
 
+  /**
+   * Verifies content access using the same precedence order as course-level checks:
+   * explicit revoke > time-limited grant > subscription tier > default deny.
+   *
+   * The method intentionally logs each denial branch separately so the access
+   * history makes the reason for a failed attempt explicit to maintainers.
+   */
   async verifyContentAccess(
     courseId: string,
     userId: string,
@@ -79,24 +103,36 @@ export class AccessControlService {
     ipAddress?: string,
   ): Promise<void> {
     const access = await this.accessRepo.findOne({
-      where: { courseId, userId, isActive: true },
+      where: { courseId, userId },
     });
 
     const attemptType = access?.role === AccessRole.STUDENT ? AccessAttemptType.PAYMENT : AccessAttemptType.FREE;
 
-    if (!access) {
+    // Explicit revoke has highest precedence. An inactive record is denied before
+    // the service evaluates any other grant signal.
+    if (!access || !access.isActive) {
       await this.logAccess(courseId, userId, 'content_denied', ipAddress, false, 'No access granted', AccessAttemptType.PAYMENT, contentId);
       throw new ForbiddenException('Purchase required to access this content');
     }
 
+    // Time-limited grants expire based on their stored timestamp and are denied
+    // before the service considers a subscription-based entitlement valid.
     if (access.subscriptionExpiryDate && new Date() > access.subscriptionExpiryDate) {
       await this.logAccess(courseId, userId, 'content_denied', ipAddress, false, 'Access pass expired', AccessAttemptType.SUBSCRIPTION, contentId);
       throw new ForbiddenException('Your access pass has expired');
     }
 
+    // Once the explicit revoke and expiry checks pass, a valid subscription-tier
+    // record allows content access. If none of the above branches fire, access is granted.
     await this.logAccess(courseId, userId, 'content_accessed', ipAddress, true, null, attemptType, contentId);
   }
 
+  /**
+   * Creates a time-limited access grant by persisting a normal access record with
+   * an expiry timestamp. The access evaluation logic treats this as a grant with
+   * a finite validity window that must be checked before any subscription-tier
+   * entitlement is considered valid.
+   */
   async grantTimeLimitedAccess(
     courseId: string,
     userId: string,

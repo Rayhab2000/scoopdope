@@ -25,6 +25,7 @@ export default () => ({
     username: process.env.DATABASE_USER!,
     password: process.env.DATABASE_PASSWORD!,
     name: process.env.DATABASE_NAME!,
+    poolSize: parseInt(process.env.DATABASE_POOL_SIZE || '50', 10),
   },
 
   jwt: {
@@ -108,5 +109,9 @@ export default () => ({
 
   exchangeRate: {
     apiKey: process.env.EXCHANGE_RATE_API_KEY || '',
+  },
+
+  payouts: {
+    batchSize: parseInt(process.env.PAYOUT_BATCH_SIZE ?? '500', 10),
   },
 });

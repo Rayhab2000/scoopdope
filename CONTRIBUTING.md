@@ -1,35 +1,135 @@
 # Contributing to scoopdope
 
-Thank you for your interest in contributing to scoopdope! We welcome contributions from the community to help make blockchain education accessible to everyone.
+Thank you for considering a contribution to scoopdope! This document covers everything you need to get started: development environment setup, branching conventions, commit message format, how to run every test suite, and the pull-request review process.
 
-## Code of Conduct
+---
 
-All contributors are expected to follow our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you agree to uphold this code. Please report unacceptable behaviour to the maintainers.
+## Table of Contents
 
-## Getting Started
+- [Development Setup](#development-setup)
+- [Project Structure](#project-structure)
+- [Branching Strategy](#branching-strategy)
+- [Commit Message Format](#commit-message-format)
+- [Running Tests](#running-tests)
+- [Pull-Request Process](#pull-request-process)
+- [Code Style](#code-style)
+- [Reporting Issues](#reporting-issues)
 
-1. **Fork the repository** on GitHub.
-2. **Clone your fork** locally: `git clone https://github.com/<your-username>/scoopdope.git`
-3. **Follow the [Developer Setup Guide](docs/development-setup.md)** to set up your environment.
-4. **Create a new branch** from `main` for your change (see naming conventions below).
-5. Make your changes, add tests, and open a pull request.
+---
 
-## Branch Naming Conventions
+## Development Setup
+
+### Prerequisites
+
+| Tool | Version |
+|---|---|
+| Node.js | v18 or higher |
+| npm | v9 or higher |
+| PostgreSQL | v12 or higher |
+| Rust | v1.75 or higher |
+| Stellar CLI | v21.5.0 |
+| Docker | Optional — simplifies local DB/Redis |
+
+### 1. Fork and clone
+
+```bash
+git clone https://github.com/<your-username>/scoopdope.git
+cd scoopdope
+```
+
+### 2. Install Node.js dependencies
+
+```bash
+npm install
+```
+
+### 3. Configure environment variables
+
+```bash
+cp .env.example .env
+# Open .env and fill in DATABASE_HOST, DATABASE_NAME, JWT_SECRET,
+# STELLAR_SECRET_KEY, STELLAR_NETWORK, and NEXT_PUBLIC_API_URL
+```
+
+### 4. Start dependent services (Docker)
+
+```bash
+docker compose up -d postgres redis
+```
+
+Or configure a local PostgreSQL instance and Redis server manually using the values from your `.env`.
+
+### 5. Start the backend in development mode
+
+```bash
+npm run dev:backend
+# REST API: http://localhost:3000
+# Swagger UI: http://localhost:3000/api/docs
+```
+
+### 6. Start the frontend in development mode
+
+```bash
+npm run dev:frontend
+# App: http://localhost:3001
+```
+
+### 7. Build smart contracts (optional for backend-only work)
+
+```bash
+rustup target add wasm32-unknown-unknown
+./scripts/build.sh
+```
+
+---
+
+## Project Structure
+
+```
+scoopdope/
+├── apps/
+│   ├── frontend/    # Next.js 14 (TypeScript)
+│   └── backend/     # NestJS REST API (TypeScript)
+├── contracts/       # Soroban smart contracts (Rust)
+├── scripts/         # Build and deploy helpers
+├── docs/            # Extended documentation
+└── .github/         # CI/CD workflows and PR templates
+```
+
+---
+
+## Branching Strategy
+
+All work happens on short-lived feature branches. Never push directly to `main`.
 
 | Prefix | When to use |
-|--------|-------------|
-| `feat/` | New feature — e.g. `feat/api-key-rotation` |
-| `fix/` | Bug fix — e.g. `fix/xss-sanitization` |
-| `docs/` | Documentation only — e.g. `docs/contract-guide` |
-| `chore/` | Maintenance, tooling, deps — e.g. `chore/upgrade-nestjs` |
-| `refactor/` | Code restructure with no behaviour change |
-| `test/` | Adding or fixing tests |
+|---|---|
+| `feature/` | New functionality |
+| `fix/` | Bug fixes |
+| `chore/` | Maintenance tasks (deps, config, CI) |
+| `docs/` | Documentation-only changes |
+| `test/` | Adding or updating tests with no production code changes |
+| `refactor/` | Code restructuring with no behaviour change |
 
-Branch names must be lowercase and use hyphens, not underscores.
+### Examples
 
-## Commit Message Format (Conventional Commits)
+```
+feature/stellar-nft-certificates
+fix/csv-import-empty-row-crash
+chore/upgrade-nestjs-10
+docs/contributing-guide
+test/stellar-indexer-integration
+```
 
-We enforce [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) via `commitlint`. Every commit message must follow this structure:
+Branch names must be lowercase and use hyphens as separators (no underscores, no spaces).
+
+---
+
+## Commit Message Format
+
+This project follows the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) specification.
+
+### Structure
 
 ```
 <type>(<scope>): <short summary>
@@ -41,91 +141,139 @@ We enforce [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/
 
 ### Types
 
-| Type | Description |
-|------|-------------|
+| Type | When to use |
+|---|---|
 | `feat` | A new feature |
 | `fix` | A bug fix |
 | `docs` | Documentation changes only |
-| `style` | Formatting, missing semicolons — no logic change |
-| `refactor` | Code change that is neither a fix nor a feature |
 | `test` | Adding or correcting tests |
+| `refactor` | Code change that is neither a fix nor a feature |
 | `chore` | Build process, dependency updates, tooling |
-| `perf` | Performance improvement |
-| `ci` | CI/CD configuration changes |
+| `ci` | Changes to CI/CD configuration |
+| `perf` | Performance improvements |
 
-### Scope (optional but encouraged)
+### Scopes (common)
 
-Use the affected module: `auth`, `courses`, `users`, `stellar`, `contracts`, `frontend`, `docs`, etc.
+`backend`, `frontend`, `contracts`, `stellar`, `import-export`, `auth`, `courses`, `ci`, `deps`
 
 ### Examples
 
 ```
-feat(auth): add API key authentication for service-to-service calls
-fix(courses): strip HTML from description before saving
-docs(contracts): add end-to-end credential issuance flow
-chore(deps): upgrade @stellar/stellar-sdk to v13
+feat(stellar): add NFT certificate minting via Soroban
+fix(import-export): reject CSV rows with missing course_title
+docs(contributing): add commit message guide
+test(stellar-indexer): add integration tests for event polling
+chore(deps): upgrade @stellar/stellar-sdk to 12.1.0
 ```
 
-Breaking changes must include `BREAKING CHANGE:` in the footer:
+Breaking changes must include `BREAKING CHANGE:` in the commit footer:
 
 ```
-feat(auth)!: remove legacy /v0 endpoints
+feat(auth)!: replace JWT with Stellar wallet signatures
 
-BREAKING CHANGE: All clients must migrate to /v1 endpoints.
+BREAKING CHANGE: existing JWT tokens are no longer accepted.
+Clients must re-authenticate using wallet-signed messages.
 ```
 
-## Pull Request Process
+---
 
-1. **Keep PRs small and focused** — one logical change per PR.
-2. **Fill in the PR template** completely.
-3. **Ensure all CI checks pass** before requesting review.
-4. **Link the related issue** using `Closes #<issue-number>` in the PR description.
-5. **Request at least one review** from a maintainer.
-6. **Address all review comments** before merging.
-7. PRs are merged via **squash merge** to keep a clean history.
+## Running Tests
 
-## Review Checklist
-
-Before submitting your PR, verify:
-
-- [ ] Code follows the style guide (`npm run lint` passes).
-- [ ] All existing tests pass (`npm run test`).
-- [ ] New tests are added for new behaviour.
-- [ ] Commits follow Conventional Commits format.
-- [ ] Documentation is updated if behaviour changes.
-- [ ] No secrets or PII are committed.
-- [ ] PR description clearly explains the *what* and *why*.
-
-## Development Workflow
+### Backend (NestJS / Jest)
 
 ```bash
-# Install dependencies
-npm install
+# Run all backend unit and integration tests
+npm run test --workspace=apps/backend
 
-# Run backend in watch mode
-npm run dev:backend
+# Run tests in watch mode during development
+npm run test:watch --workspace=apps/backend
 
-# Run tests
-cd apps/backend && npm test
-
-# Lint
-npm run lint
+# Generate coverage report
+npm run test:cov --workspace=apps/backend
 ```
 
-See [docs/development-setup.md](docs/development-setup.md) for the full setup guide.
+### Frontend (Next.js / Jest + React Testing Library)
 
-## Security
+```bash
+# Run all frontend tests
+npm run test --workspace=apps/frontend
+```
 
-If you discover a security vulnerability, **do not open a public issue**. Follow our [Security Policy](SECURITY.md) for responsible disclosure.
+### Smart Contracts (Rust / cargo test)
 
-## API Versioning
+```bash
+# Run tests for all contracts
+cargo test --workspace
 
-All REST endpoints are prefixed with `/v1`. Before introducing any breaking change you **must** follow the process in [docs/api-versioning.md](docs/api-versioning.md). In short:
+# Run tests for a single contract
+cargo test -p analytics
+cargo test -p token
+```
 
-1. Implement the change under a new prefix (`/v2/...`) — never modify `/v1` in place.
-2. Mark the old endpoint deprecated in Swagger (`@ApiOperation({ deprecated: true })`).
-3. Add `Deprecation` and `Sunset` response headers to the old endpoint.
-4. Use a `feat!:` or `BREAKING CHANGE:` commit so Release Please bumps the major version.
-5. Keep both versions running for **at least 90 days** before removing `/v1`.
+### Linting and formatting
 
-See [docs/api-versioning.md](docs/api-versioning.md) for the full strategy, deprecation timeline, and migration examples.
+```bash
+# Lint all TypeScript (backend + frontend)
+npm run lint
+
+# Format all TypeScript
+npm run format
+
+# Check Rust formatting
+cargo fmt --check
+
+# Run Clippy static analysis
+cargo clippy -- -D warnings
+```
+
+All of the above are enforced by CI on every push and pull request. **Do not open a PR with failing lint or test runs.**
+
+---
+
+## Pull-Request Process
+
+1. **Branch off main** — ensure your branch is up-to-date with the latest `main` before opening a PR.
+
+   ```bash
+   git fetch origin
+   git rebase origin/main
+   ```
+
+2. **Self-review your diff** — check for accidental debug logs, commented-out code, or unrelated changes.
+
+3. **Fill in the PR template** — include a summary of changes, the issue(s) being fixed (use `Closes #<number>`), and what you tested manually.
+
+4. **Ensure CI passes** — all GitHub Actions workflows (build, test, lint) must be green. Fix failures before requesting a review.
+
+5. **Request a review** — assign at least one reviewer. For backend changes touching Stellar/Soroban logic, tag a maintainer familiar with the stellar module.
+
+6. **Address feedback** — push additional commits (do not force-push after review has started). Mark conversations as resolved once the change is applied.
+
+7. **Squash on merge** — PRs are merged with "Squash and merge" to keep `main` history linear.
+
+---
+
+## Code Style
+
+- **TypeScript** — follow the ESLint and Prettier configuration in the repo root. Run `npm run format` before committing.
+- **NestJS** — use `@Injectable()` services, constructor injection, and NestJS-idiomatic module structure.
+- **Tests** — co-locate spec files with source files (`*.spec.ts`). Use `jest.fn()` / `jest.spyOn()` for mocking. Avoid over-mocking; prefer shallow integration tests where practical.
+- **Rust** — run `cargo fmt` and `cargo clippy` before pushing. Fix all Clippy warnings.
+- **No secrets in code** — never commit real secret keys, passwords, or private keys. Use `.env` or environment variable injection.
+
+---
+
+## Reporting Issues
+
+Open a GitHub issue with a clear title and description. Include:
+
+- Steps to reproduce (if a bug)
+- Expected vs. actual behaviour
+- Relevant logs or stack traces
+- Environment details (OS, Node version, network: testnet/mainnet)
+
+Use the appropriate label: `bug`, `feature`, `docs`, `testing`, `stellar`, or `priority: high/medium/low`.
+
+---
+
+*Built with ❤️ on the Stellar network.*

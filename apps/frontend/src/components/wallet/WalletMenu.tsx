@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useWalletStore } from '@/store/walletStore';
 import { connectFreighter, fetchXlmBalance } from '@/lib/walletApi';
 import { TestnetFaucet } from './TestnetFaucet';
+import { Modal } from '@/components/ui/Modal';
 
 interface WalletMenuProps {
   onClose: () => void;
@@ -29,6 +30,7 @@ export function WalletMenu({ onClose }: WalletMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
   const [txHistory, setTxHistory] = useState<TxRecord[]>([]);
   const [txLoading, setTxLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
   // Close on outside click
   useEffect(() => {
@@ -85,7 +87,14 @@ export function WalletMenu({ onClose }: WalletMenuProps) {
     }
   }
 
+  function handleConfirmDisconnect() {
+    setShowConfirm(false);
+    disconnect();
+    onClose();
+  }
+
   return (
+    <>
     <div
       ref={menuRef}
       className="absolute right-0 top-full mt-1 w-80 bg-white border rounded-xl shadow-lg p-4 z-50 space-y-3"
@@ -117,12 +126,37 @@ export function WalletMenu({ onClose }: WalletMenuProps) {
         </button>
         <button
           className="flex-1 text-sm border border-red-200 text-red-600 rounded-lg py-1.5 hover:bg-red-50 transition-colors"
-          onClick={() => { disconnect(); onClose(); }}
+          onClick={() => setShowConfirm(true)}
           role="menuitem"
         >
           Disconnect
         </button>
       </div>
     </div>
+
+    <Modal
+      isOpen={showConfirm}
+      onClose={() => setShowConfirm(false)}
+      title="Disconnect Wallet"
+    >
+      <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+        Are you sure you want to disconnect your wallet?
+      </p>
+      <div className="flex justify-end gap-3">
+        <button
+          className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 transition-colors"
+          onClick={() => setShowConfirm(false)}
+        >
+          Cancel
+        </button>
+        <button
+          className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+          onClick={handleConfirmDisconnect}
+        >
+          Disconnect
+        </button>
+      </div>
+    </Modal>
+    </>
   );
 }

@@ -31,6 +31,7 @@ scoopdope/
 │   └── shared/            # RBAC & shared utilities (Rust/Soroban)
 ├── scripts/               # Build and deploy scripts
 ├── docs/                  # Extended documentation
+│   ├── api-versioning.md
 │   ├── api-rate-limiting.md
 │   ├── community-moderation.md
 │   ├── catastrophic-recovery.md
@@ -232,6 +233,7 @@ All API endpoints are prefixed with `/v1` for versioning.
 |---|---|---|
 | POST | `/v1/auth/register` | Register a new user |
 | POST | `/v1/auth/login` | Login and receive JWT |
+
 | GET | `/v1/courses` | List all published courses |
 | GET | `/v1/courses/:id` | Get a single course |
 | GET | `/v1/users/:id` | Get user profile |
@@ -240,6 +242,9 @@ All API endpoints are prefixed with `/v1` for versioning.
 **Interactive API Documentation:**
 - Local: `http://localhost:3000/api/docs`
 - Production: [https://nonso-eze.github.io/scoopdope/](https://nonso-eze.github.io/scoopdope/)
+
+**Versioning Policy:**
+All routes use the `/v1` prefix. For details on breaking-change rules, the deprecation timeline (90-day sunset window), header-based version negotiation, and migration examples, see [`docs/api-versioning.md`](./docs/api-versioning.md).
 
 ---
 
@@ -257,9 +262,19 @@ GitHub Actions workflows in `.github/workflows/` run on every push and PR:
 
 ## Contributing
 
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the full contributing guide, including:
+
+- Development environment setup
+- Branching conventions (`feature/`, `fix/`, `chore/`, `docs/`, `test/`)
+- Commit message format (Conventional Commits)
+- How to run backend, frontend, and contract test suites
+- Pull-request review process
+
+Quick summary:
+
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit with clear messages
+3. Commit with [Conventional Commits](https://www.conventionalcommits.org/) messages
 4. Ensure all CI checks pass
 5. Open a pull request with a detailed description
 

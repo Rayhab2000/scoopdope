@@ -112,7 +112,15 @@ export class WebhooksService implements OnModuleInit {
     }
 
     const expected = this.sign(secret, body);
-    return crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
+
+    // crypto.timingSafeEqual throws if the two buffers have different lengths,
+    // which would itself leak length information. Guard with an explicit length
+    // check first; both buffers must be the same size before we compare bytes.
+    const expectedBuf = Buffer.from(expected);
+    const signatureBuf = Buffer.from(signature);
+    if (expectedBuf.length !== signatureBuf.length) return false;
+
+    return crypto.timingSafeEqual(expectedBuf, signatureBuf);
   }
 
   private async deliver(wh: Webhook, delivery: WebhookDelivery): Promise<void> {

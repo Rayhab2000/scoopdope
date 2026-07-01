@@ -41,6 +41,12 @@ export class ApiKeysController {
     summary: 'List API keys',
     description: 'Returns all API keys for the authenticated user with masked values.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({
     status: 200,
     description: 'List of API keys',
@@ -59,6 +65,12 @@ export class ApiKeysController {
     description:
       'Generates a new API key for programmatic access. The raw key is returned only once.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({
     status: 201,
     description: 'API key created',
@@ -75,6 +87,12 @@ export class ApiKeysController {
     summary: 'Update API key',
     description: 'Updates the name or description of an existing API key.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'API key updated', type: ApiKeyResponseDto })
   async updateKey(
     @Req() req: any,
@@ -91,6 +109,12 @@ export class ApiKeysController {
     summary: 'Revoke API key',
     description: 'Revokes an API key. Revoked keys cannot be reactivated.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'API key revoked' })
   async revokeKey(@Req() req: any, @Param('id') id: string) {
     return this.apiKeysService.revoke(id, req.user.id);
@@ -104,6 +128,12 @@ export class ApiKeysController {
     description:
       'Generates a new key value while preserving the existing key metadata. The old key is immediately invalidated.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({
     status: 201,
     description: 'API key rotated',
@@ -121,6 +151,12 @@ export class ApiKeysController {
     summary: 'List all API keys (admin)',
     description: 'Returns all API keys across the platform with pagination and filters.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiQuery({ name: 'userId', required: false })
   @ApiQuery({ name: 'isActive', required: false })
   @ApiQuery({ name: 'page', required: false })
@@ -143,6 +179,12 @@ export class ApiKeysController {
     summary: 'Force revoke API key (admin)',
     description: 'Forcefully revokes any API key on the platform.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'API key force revoked' })
   async adminForceRevokeKey(@Param('id') id: string) {
     return this.apiKeysService.adminForceRevoke(id);

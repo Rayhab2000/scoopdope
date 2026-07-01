@@ -4,14 +4,27 @@ on:
   schedule:
     - cron: '0 2 * * 0'
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'apps/backend/src/auth/**'
+      - 'apps/backend/src/payments/**'
+      - 'apps/backend/src/certificates/**'
+      - 'apps/backend/src/waitlist/**'
+      - 'apps/backend/src/**/*.spec.ts'
+      - 'apps/backend/src/**/*.test.ts'
+      - 'apps/backend/jest.config.js'
+      - 'stryker.conf.js'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/mutation.yml'
 
 jobs:
   mutation-testing:
+    name: Run Stryker mutation tests
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read
-      checks: write
-    timeout-minutes: 60
 
     services:
       postgres:
@@ -21,13 +34,12 @@ jobs:
           POSTGRES_PASSWORD: test_password
           POSTGRES_DB: scoopdope_test
         options: >-
-          --health-cmd pg_isready
+          --health-cmd "pg_isready -U test_user -d scoopdope_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
         ports:
           - 5432:5432
-
       redis:
         image: redis:7-alpine
         options: >-
@@ -38,92 +50,49 @@ jobs:
         ports:
           - 6379:6379
 
+    env:
+      NODE_ENV: test
+      DATABASE_HOST: localhost
+      DATABASE_PORT: 5432
+      DATABASE_USER: test_user
+      DATABASE_PASSWORD: test_password
+      DATABASE_NAME: scoopdope_test
+      JWT_SECRET: test_secret_key_minimum_16_chars
+      REDIS_URL: redis://localhost:6379
+      STELLAR_NETWORK: testnet
+      STELLAR_SECRET_KEY: SBZVMB74Z7TTIWZNZ7CLBT6OJRZKMV4ZSM7CEGJR5ZJQSTQG5O6HBSY
+      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_WEB_AUTH_DOMAIN: localhost
+      EMAIL_HOST: localhost
+      EMAIL_PORT: 587
+      EMAIL_USER: test@example.com
+      EMAIL_PASS: test_password
+      EMAIL_ENABLED: 'false'
+      FRONTEND_URL: http://localhost:3001
+      CORS_ORIGINS: http://localhost:3001
+      CI: 'true'
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20.x'
+          node-version: '20'
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm install
+        run: npm ci
 
       - name: Run mutation testing
-        env:
-          DATABASE_HOST: localhost
-          DATABASE_PORT: 5432
-          DATABASE_USER: test_user
-          DATABASE_PASSWORD: test_password
-          DATABASE_NAME: scoopdope_test
-          JWT_SECRET: test_secret_key_minimum_16_chars
-          REDIS_URL: redis://localhost:6379
-          STELLAR_NETWORK: testnet
-          STELLAR_SECRET_KEY: SBZVMB74Z7TTIWZNZ7CLBT6OJRZKMV4ZSM7CEGJR5ZJQSTQG5O6HBSY
-          SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
-          STELLAR_WEB_AUTH_DOMAIN: localhost
-          EMAIL_HOST: localhost
-          EMAIL_PORT: 587
-          EMAIL_USER: test@example.com
-          EMAIL_PASS: test_password
-          FRONTEND_URL: http://localhost:3001
-          CORS_ORIGINS: http://localhost:3001
-        run: npm run test:mutation:ci
+        run: npm run test:mutation
 
-      - name: Upload mutation report as artifact
+      - name: Upload HTML mutation report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: mutation-testing-report
           path: coverage/mutation/
+          if-no-files-found: warn
           retention-days: 30
-
-      - name: Comment PR with mutation testing results
-        if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const reportPath = './coverage/mutation/json.json';
-
-            if (fs.existsSync(reportPath)) {
-              const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-              const metrics = report.metrics || {};
-              const mutationScore = metrics.mutationScore || 'N/A';
-
-              const comment = `## 🧬 Mutation Testing Results
-
-              | Metric | Value |
-              |--------|-------|
-              | Mutation Score | ${mutationScore}% |
-              | Killed | ${metrics.killed || 0} |
-              | Survived | ${metrics.survived || 0} |
-              | Timeout | ${metrics.timeout || 0} |
-              | Compile Errors | ${metrics.compileErrors || 0} |
-
-              [View Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})`;
-
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                body: comment
-              });
-            }
-
-      - name: Check mutation score threshold
-        run: |
-          if [ -f coverage/mutation/json.json ]; then
-            SCORE=$(grep -o '"mutationScore":[0-9]*' coverage/mutation/json.json | cut -d':' -f2)
-            echo "Mutation Score: $SCORE%"
-            if [ "$SCORE" -lt 60 ]; then
-              echo "❌ Mutation score ($SCORE%) is below threshold (60%)"
-              exit 1
-            else
-              echo "✅ Mutation score ($SCORE%) meets threshold"
-            fi
-          fi

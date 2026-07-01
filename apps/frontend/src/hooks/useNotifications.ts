@@ -26,6 +26,16 @@ export function useNotifications() {
   const token = useAuthStore((s) => s.token);
   const socketRef = useRef<Socket | null>(null);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [playSound, setPlaySound] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Initialize audio element
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      audioRef.current = new Audio('/notification-sound.mp3');
+      audioRef.current.volume = 0.5;
+    }
+  }, []);
 
   useEffect(() => {
     if (!token) return;
@@ -44,6 +54,20 @@ export function useNotifications() {
     // New incoming notification
     socket.on('notification', (n: AppNotification) => {
       setNotifications((prev) => [n, ...prev]);
+      
+      // Trigger sound and visual feedback
+      setPlaySound(true);
+      
+      // Play notification sound if enabled
+      const soundEnabled = localStorage.getItem('notificationSound') !== 'false';
+      if (soundEnabled && audioRef.current) {
+        audioRef.current.play().catch(() => {
+          // Ignore errors (e.g., user hasn't interacted with page yet)
+        });
+      }
+      
+      // Reset pulse animation after delay
+      setTimeout(() => setPlaySound(false), 1000);
     });
 
     // Server confirms mark-as-read
@@ -74,5 +98,5 @@ export function useNotifications() {
 
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
-  return { notifications, unreadCount, markAsRead, markAllRead };
+  return { notifications, unreadCount, markAsRead, markAllRead, playSound };
 }

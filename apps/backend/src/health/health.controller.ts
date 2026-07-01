@@ -47,6 +47,12 @@ export class HealthController {
     description:
       'Returns comprehensive health status of the application including database, Redis, Stellar, memory, disk, and Elasticsearch connectivity.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'All health checks passed' })
   @ApiResponse({ status: 503, description: 'One or more health checks failed' })
   @HealthCheck()
@@ -84,6 +90,12 @@ export class HealthController {
     description:
       'Lightweight probe for container orchestrators. Returns 200 if the process is alive and not shutting down. Does NOT check dependencies.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Process is alive' })
   @ApiResponse({ status: 503, description: 'Process is shutting down' })
   async checkLiveness() {
@@ -97,6 +109,12 @@ export class HealthController {
     description:
       'Readiness probe for load balancers and container orchestrators. Checks if the application can serve traffic (DB, Redis).',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Application is ready to serve traffic' })
   @ApiResponse({ status: 503, description: 'Application is not ready' })
   async checkReadiness() {
@@ -110,6 +128,12 @@ export class HealthController {
     description:
       'Startup probe for container orchestrators. Returns 200 once the application has initialized successfully.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Application started successfully' })
   async checkStartup() {
     const result = await this.healthService.checkStartup();
@@ -122,6 +146,12 @@ export class HealthController {
     description:
       'Returns blue/green deployment environment information for load balancer integration.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Environment information retrieved' })
   async checkEnvironment() {
     return this.healthService.getEnvironmentInfo();
@@ -133,6 +163,12 @@ export class HealthController {
     description:
       'Returns application version, uptime, and system information for monitoring integrations.',
   })
+  @ApiResponse({ status: 400, description: 'Bad request' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'Not found' })
+  @ApiResponse({ status: 429, description: 'Too many requests' })
+  @ApiResponse({ status: 500, description: 'Internal server error' })
   @ApiResponse({ status: 200, description: 'Version information retrieved' })
   async checkVersion() {
     return this.healthService.getSystemInfo();

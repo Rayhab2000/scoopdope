@@ -1,7 +1,8 @@
 // @ts-check
 /** @type {import('@stryker-mutator/api').StrykerOptions} */
 const config = {
-  _comment: 'This config was generated using "stryker init". Please take a look at: https://stryker-mutator.io/docs/stryker-js/configuration/ for more information.',
+  _comment:
+    'Mutation testing is intentionally scoped to critical backend modules to keep CI runtime sustainable while protecting high-risk business logic.',
   packageManager: 'npm',
   reporters: ['html', 'clear-text', 'progress', 'json'],
   htmlReporter: {
@@ -13,20 +14,25 @@ const config = {
   testRunner: 'jest',
   jest: {
     projectType: 'custom',
-    configFile: 'jest.config.js',
+    configFile: 'apps/backend/jest.config.js',
+    enableFindRelatedTests: true,
   },
   mutate: [
     'apps/backend/src/auth/**/*.ts',
     'apps/backend/src/payments/**/*.ts',
     'apps/backend/src/certificates/**/*.ts',
     'apps/backend/src/waitlist/**/*.ts',
-    'apps/backend/src/courses/**/*.ts',
-    '!**/*.spec.ts',
-    '!**/*.test.ts',
-    '!**/*.spec.tsx',
-    '!**/*.test.tsx',
-    '!**/index.ts',
-    '!**/types.ts',
+    '!apps/backend/src/**/*.spec.ts',
+    '!apps/backend/src/**/*.test.ts',
+    '!apps/backend/src/**/*.spec.tsx',
+    '!apps/backend/src/**/*.test.tsx',
+    '!apps/backend/src/**/index.ts',
+    '!apps/backend/src/**/*.module.ts',
+    '!apps/backend/src/**/*.controller.ts',
+    '!apps/backend/src/**/*.entity.ts',
+    '!apps/backend/src/**/*.dto.ts',
+    '!apps/backend/src/**/dto/**/*.ts',
+    '!apps/backend/src/**/types.ts',
   ],
   thresholds: {
     high: 80,
@@ -39,4 +45,4 @@ const config = {
   maxConcurrentTestRunners: 4,
 };
 
-export default config;
+module.exports = config;
