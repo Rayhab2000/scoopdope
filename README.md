@@ -233,6 +233,7 @@ All API endpoints are prefixed with `/v1` for versioning.
 |---|---|---|
 | POST | `/v1/auth/register` | Register a new user |
 | POST | `/v1/auth/login` | Login and receive JWT |
+
 | GET | `/v1/courses` | List all published courses |
 | GET | `/v1/courses/:id` | Get a single course |
 | GET | `/v1/users/:id` | Get user profile |
