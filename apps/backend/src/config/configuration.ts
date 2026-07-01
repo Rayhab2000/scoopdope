@@ -109,4 +109,8 @@ export default () => ({
   exchangeRate: {
     apiKey: process.env.EXCHANGE_RATE_API_KEY || '',
   },
+
+  payouts: {
+    batchSize: parseInt(process.env.PAYOUT_BATCH_SIZE ?? '500', 10),
+  },
 });
