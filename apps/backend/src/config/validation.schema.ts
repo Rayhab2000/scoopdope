@@ -88,4 +88,7 @@ export const validationSchema = Joi.object({
 
   // OpenTelemetry
   OTEL_SAMPLING_RATE: Joi.number().min(0).max(1).default(0.1),
+
+  // Payouts
+  PAYOUT_BATCH_SIZE: Joi.number().integer().min(1).default(500),
 });
