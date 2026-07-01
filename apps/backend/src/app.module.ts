@@ -89,7 +89,7 @@ import { validationSchema } from './config/validation.schema';
           autoLoadEntities: true,
           synchronize,
           extra: {
-            max: config.get<number>('database.poolSize') || 20,
+            max: config.get<number>('database.poolSize') || 50,
             idleTimeoutMillis: 30_000,
             connectionTimeoutMillis: 5_000,
           },
