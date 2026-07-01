@@ -137,7 +137,13 @@ const AnimatedRing = memo(function AnimatedRing({ value, size, strokeWidth }: An
   }, [clamped, circumference]);
 
   const colorClass =
-    clamped === 100 ? 'stroke-green-500' : clamped >= 50 ? 'stroke-blue-500' : 'stroke-amber-500';
+    clamped === 100
+      ? 'stroke-green-500'
+      : clamped >= 99
+        ? 'stroke-blue-400'
+        : clamped >= 50
+          ? 'stroke-blue-500'
+          : 'stroke-amber-500';
 
   return (
     <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
@@ -363,14 +369,16 @@ const ModuleRow = memo(
 // ── Overall summary card ──────────────────────────────────────────────────────
 
 const OverallCard = memo(function OverallCard({ data }: { data: CourseProgressPayload }) {
-  const pct = data.overallProgressPct;
+  const pct = Math.round(data.overallProgressPct);
 
   const statusLabel =
     pct === 100
       ? 'Course complete!'
-      : pct === 0
-        ? 'Not started yet'
-        : `${data.completedLessons} of ${data.totalLessons} lessons done`;
+      : pct >= 99 && data.overallProgressPct < 100
+        ? 'Almost done!'
+        : pct === 0
+          ? 'Not started yet'
+          : `${data.completedLessons} of ${data.totalLessons} lessons done`;
 
   const ringColor =
     pct === 100 ? 'text-green-600 dark:text-green-400' : 'text-blue-600 dark:text-blue-400';
@@ -401,6 +409,11 @@ const OverallCard = memo(function OverallCard({ data }: { data: CourseProgressPa
                 <Trophy className="w-4 h-4" aria-hidden="true" />
                 {statusLabel}
               </span>
+            ) : pct >= 99 && data.overallProgressPct < 100 ? (
+              <span className="flex items-center gap-1.5 text-blue-600 dark:text-blue-400">
+                <Star className="w-4 h-4" aria-hidden="true" />
+                {statusLabel}
+              </span>
             ) : (
               statusLabel
             )}
@@ -428,7 +441,7 @@ const OverallCard = memo(function OverallCard({ data }: { data: CourseProgressPa
       <div className="mt-4">
         <AnimatedBar
           value={pct}
-          colorClass={pct === 100 ? 'bg-green-500' : 'bg-blue-500'}
+          colorClass={pct === 100 ? 'bg-green-500' : pct >= 99 && data.overallProgressPct < 100 ? 'bg-blue-400' : 'bg-blue-500'}
           heightClass="h-2.5"
         />
       </div>
