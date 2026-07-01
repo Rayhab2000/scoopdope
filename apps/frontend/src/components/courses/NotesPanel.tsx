@@ -1,9 +1,9 @@
 'use client';
 
+import DOMPurify from 'dompurify';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '@/lib/api';
 import { toast } from '@/lib/toast';
-import { sanitizeHtml } from '@/lib/sanitize';
 import { BookOpen, Download, Plus, Search, Trash2, X } from 'lucide-react';
 
 interface Note {
@@ -101,12 +101,28 @@ export function NotesPanel({ lessonId, lessonTitle, currentTime, onSeek }: Notes
   };
 
   const exportPdf = async () => {
+    // Allowed tags for note content: a minimal set covering common inline formatting.
+    // Event handlers, scripts, iframes, and all other dangerous constructs are
+    // stripped by DOMPurify before the content is written to the print window.
+    const PURIFY_CONFIG: DOMPurify.Config = {
+      ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'p', 'br', 'ul', 'ol', 'li'],
+      ALLOWED_ATTR: [],
+    };
+
+    const safeTitle = DOMPurify.sanitize(lessonTitle, PURIFY_CONFIG);
+    const noteRows = notes
+      .map(
+        (n) =>
+          `<p><span class="ts">[${fmt(n.timestamp)}]</span>${DOMPurify.sanitize(n.content, PURIFY_CONFIG)}</p>`,
+      )
+      .join('');
+
     // Build a minimal printable HTML page and open the browser print dialog
-    const html = `<!DOCTYPE html><html><head><title>Notes — ${lessonTitle}</title>
+    const html = `<!DOCTYPE html><html><head><title>Notes — ${safeTitle}</title>
       <style>body{font-family:sans-serif;max-width:700px;margin:40px auto;line-height:1.6}
       h1{font-size:1.4rem}span.ts{color:#4F46E5;font-weight:600;margin-right:8px}</style>
-      </head><body><h1>Notes — ${sanitizeHtml(lessonTitle)}</h1>
-      ${notes.map((n) => `<p><span class="ts">[${fmt(n.timestamp)}]</span>${sanitizeHtml(n.content)}</p>`).join('')}
+      </head><body><h1>Notes — ${safeTitle}</h1>
+      ${noteRows}
       </body></html>`;
     const win = window.open('', '_blank');
     if (!win) { toast.error('Allow pop-ups to export PDF'); return; }
@@ -224,4 +240,3 @@ function download(blob: Blob, filename: string) {
   a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
 }
-
